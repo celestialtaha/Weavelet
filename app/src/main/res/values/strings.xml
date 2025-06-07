@@ -1,0 +1,56 @@
+<resources>
+    <string name="app_name">Weavelet</string>
+    
+    <!-- Music Player Strings -->
+    <string name="music_library">Music Library</string>
+    <string name="no_music_found">No music files found</string>
+    <string name="error_loading_music">Error loading music files</string>
+    <string name="permission_required">Storage permission required</string>
+    <string name="now_playing">Now Playing</string>
+    <string name="unknown_artist">Unknown Artist</string>
+    <string name="unknown_album">Unknown Album</string>
+    <string name="nothing_playing">Nothing playing</string>
+    
+    <!-- Playback Controls -->
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="next">Next</string>
+    <string name="previous">Previous</string>
+    <string name="album_art_for">Album art for %1$s</string>
+    
+    <!-- Tile and Complication -->
+    <string name="tile_label">Music Player</string>
+    <string name="complication_label">Music Status</string>
+    
+    <!-- Settings Screen -->
+    <string name="settings">Settings</string>
+    <string name="auto_play_on_start">Auto-play on start</string>
+    <string name="show_album_art">Show album art</string>
+    <string name="enable_complication">Enable complication</string>
+    <string name="sort_by">Sort tracks by</string>
+    <string name="sort_by_title">Title</string>
+    <string name="sort_by_artist">Artist</string>
+    <string name="sort_by_album">Album</string>
+    <string name="sort_by_date_added">Date added</string>
+    <string name="back">Back</string>
+    <string name="need_storage_permission">
+    Storage permission is required to load your music</string>
+    <string name="empty_library">No tracks on your watch</string>
+    <string name="search">Search</string>
+    <string name="search_hint">Search…</string>
+    <string name="clear">Clear</string>
+    
+    <!-- Home Screen -->
+    <string name="home">Home</string>
+    
+    <!-- About Screen -->
+    <string name="about">About</string>
+    <string name="about_description">A Wear OS music player that lets you listen to music stored on your watch.</string>
+    <string name="version_info">Version 1.0</string>
+    
+    <!-- Tile: primary chip text -->
+    <string name="open_player">Open Music Player</string>
+
+    <!-- Tile: accessibility / talk-back description -->
+    <string name="open_player_desc">Launch the Wear Music player</string>
+</resources>

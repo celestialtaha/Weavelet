@@ -1,0 +1,88 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Kotlin
+*.class
+*.kt~ 
+*.kts~
+*.swp
+
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Log files
+*.log
+
+# Android Studio
+.idea/
+*.iml
+*.ipr
+*.iws
+.idea/caches
+.idea/libraries
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.idea/compiler.xml
+.idea/dictionaries/
+.idea/gradle.xml
+.idea/markdown-navigator.xml
+.idea/tasks.xml
+
+# Android specific
+captures/
+.externalNativeBuild/
+
+# IntelliJ
+out/
+
+# Keystore files
+*.jks
+*.keystore
+
+# Misc
+.DS_Store
+*.tmp
+*.bak
+*.orig
+*.rej
+*.sublime-workspace
+*.sublime-project
+*.apk
+*.ap_
+*.db
+*.db-journal
+
+# NDK
+obj/
+
+# Unit test & lint
+test-output/
+lint/intermediates/
+lint/generated/
+
+# Crashlytics / Firebase
+crashlytics-build.properties
+fabric.properties
+firebase/
+google-services.json
+
