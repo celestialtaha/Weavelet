@@ -2,20 +2,26 @@ package com.wapp.wearmusic.data.repository
 
 import android.content.ContentUris
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.util.Log
 import android.util.LruCache
 import com.wapp.wearmusic.data.model.Track
 import com.wapp.wearmusic.data.model.TrackPage
 import com.wapp.wearmusic.data.model.CachedTrackMetadata
+import com.wapp.wearmusic.service.MusicPlaybackService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.io.IOException
 
 /**
@@ -44,18 +50,30 @@ class MusicRepository(private val context: Context) {
     // Track count cache
     private var cachedTrackCount: Int? = null
     private var trackCountCacheTime: Long = 0
+    private val LOAD_TIMEOUT = 10000L
 
     /**
      * Get all music tracks from the device with pagination
      */
+    fun getTracksPageTimeoutWrapper(
+        offset: Int = 0,
+        limit: Int = PAGE_SIZE
+    ): Flow<TrackPage> = flow {
+        try {
+            withTimeout(LOAD_TIMEOUT) {
+                emitAll(getTracksPage(offset, limit)) // flatten inner flow into this one
+            }
+        } catch (e: TimeoutCancellationException) {
+            Log.e("MusicRepository", "Track loading timed out", e)
+            throw IOException("Track loading timed out", e)
+        }
+    }
     fun getTracksPage(offset: Int = 0, limit: Int = PAGE_SIZE): Flow<TrackPage> = flow {
+
         val tracks = mutableListOf<Track>()
 
-        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val collection =
             MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        } else {
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        }
 
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
@@ -230,6 +248,11 @@ class MusicRepository(private val context: Context) {
         
         emit(allTracks)
     }.flowOn(Dispatchers.IO)
+
+    fun startPlaybackService() {
+        val intent = Intent(context, MusicPlaybackService::class.java)
+        context.startForegroundService(intent)
+    }
 
     /**
      * Lazy load album artwork for a track

@@ -28,6 +28,15 @@ class MusicPlaybackService : MediaSessionService() {
 
     private lateinit var player: ExoPlayer
     private lateinit var session: MediaSession
+    private val playerListener = object : Player.Listener {
+        override fun onPlayerError(error: PlaybackException) {
+            // Handle errors (e.g., skip unplayable track)
+            val currentIndex = player.currentMediaItemIndex
+            if (player.mediaItemCount > currentIndex + 1) {
+                player.seekToNextMediaItem()
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -40,8 +49,13 @@ class MusicPlaybackService : MediaSessionService() {
                     .build(),
                 /* handleAudioFocus = */ true
             )
-            .build().apply { repeatMode = Player.REPEAT_MODE_ALL }
+            .build().apply {
+                repeatMode = Player.REPEAT_MODE_ALL
+                setHandleAudioBecomingNoisy(true) // Auto-pause when headphones disconnected
+                addListener(playerListener)
+            }
 
+        player.addListener(playerListener)
         // No setForegroundServiceBehavior() – removed from public API
         session = MediaSession.Builder(this, player).build()
     }
@@ -50,6 +64,7 @@ class MusicPlaybackService : MediaSessionService() {
     override fun onGetSession(info: MediaSession.ControllerInfo): MediaSession = session
 
     override fun onDestroy() {
+        player.removeListener(playerListener)
         session.release()
         player.release()
         super.onDestroy()
@@ -59,17 +74,19 @@ class MusicPlaybackService : MediaSessionService() {
     /* Public helper used by the ViewModel                                */
     /* ------------------------------------------------------------------ */
 
-    fun loadAndPlayTracks(tracks: List<Track>, startIndex: Int = 0) {
-        if (tracks.isEmpty()) return
-
-        // For Android O+: startForegroundService *before* playback if you
-        // launch the service yourself. (The controller path works without it.)
-        startForegroundService(Intent(this, javaClass))
-
-        player.setMediaItems(tracks.map { it.toMediaItem() }, startIndex, 0)
-        player.prepare()
-        player.play()   // triggers automatic foreground promotion + notification
-    }
+//    fun loadAndPlayTracks(tracks: List<Track>, startIndex: Int = 0) {
+//        if (tracks.isEmpty()) return
+//        if (!this::player.isInitialized) return
+//
+//        // For Android O+: startForegroundService *before* playback if you
+//        // launch the service yourself. (The controller path works without it.)
+//        startForegroundService(Intent(this, javaClass))
+//
+//        val mediaItems = tracks.mapTo(ArrayList(tracks.size)) { it.toMediaItem() }
+//        player.setMediaItems(mediaItems, startIndex, 0)
+//        player.prepare()
+//        player.play()   // triggers automatic foreground promotion + notification
+//    }
 
     /* Track → MediaItem mapper ----------------------------------------- */
     private fun Track.toMediaItem(): MediaItem =
