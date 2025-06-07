@@ -1,5 +1,3 @@
-@file:OptIn(androidx.wear.compose.foundation.ExperimentalWearFoundationApi::class)
-
 package com.wapp.wearmusic.presentation.screens
 
 import androidx.compose.foundation.layout.Box
@@ -76,7 +74,7 @@ fun MusicPlayerApp(
                                 showLibrary = false
                                 showPlayer  = true
                             },
-                            onSettingsClick = { /* no-op in BG */ }
+                            //onSettingsClick = { /* no-op in BG */ }
                         )
                     }
                     showSettings && showPlayer -> {
@@ -110,7 +108,7 @@ fun MusicPlayerApp(
                             viewModel = viewModel,
                             settingsViewModel = settingsViewModel,
                             onTrackClick = { /* no-op in BG */ },
-                            onSettingsClick = { /* no-op in BG */ }
+                            //onSettingsClick = { /* no-op in BG */ }
                         )
                     }
                 }
@@ -173,7 +171,7 @@ fun MusicPlayerApp(
                                     showLibrary = false
                                     showPlayer  = true
                                 },
-                                onSettingsClick = { showSettings = true }
+                                //onSettingsClick = { showSettings = true }
                             )
                         }
                     }
