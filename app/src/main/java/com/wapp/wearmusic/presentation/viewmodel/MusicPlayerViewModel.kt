@@ -5,8 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.os.VibrationEffect
-import android.os.Vibrator
+
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
@@ -34,7 +33,6 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo  = MusicRepository(app)
     private val prefs = app.getSharedPreferences("music_player_settings", Context.MODE_PRIVATE)
-    private val vibrator = app.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
 
     /* ------------------------------------------------------------------ */
     /* MediaController                                                     */
@@ -60,6 +58,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val _currentPage = MutableStateFlow(0)
     private val _isLoadingMore = MutableStateFlow(false)
     private val _hasMoreTracks = MutableStateFlow(true)
+    private var currentTrackJob: Job? = null
 
     val uiState:        StateFlow<MusicPlayerUiState> = _uiState.asStateFlow()
     val tracks:         StateFlow<List<Track>>        = _tracks.asStateFlow()
@@ -72,6 +71,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
     val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
     val hasMoreTracks: StateFlow<Boolean> = _hasMoreTracks.asStateFlow()
+    val hapticEnabled = MutableStateFlow(true) // default true
 
     /* ------------------------------------------------------------------ */
     /* Init                                                                */
@@ -81,6 +81,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     private var originalTrackList: List<Track> = emptyList()
 
     init {
+        hapticEnabled.value = prefs.getBoolean("haptic_feedback", true)
         viewModelScope.launch {
             controller = MediaController.Builder(getApplication(), sessionToken)
                 .buildAsync()
@@ -102,6 +103,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        currentTrackJob?.cancel()
         controller?.removeListener(playerListener) // <-- Add this line
         controller?.release()
         posTicker?.cancel()
@@ -115,7 +117,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
    /**
      * Load tracks with pagination
      */
-    public fun loadTracks() {
+    fun loadTracks() {
         viewModelScope.launch {
             _uiState.value = MusicPlayerUiState.Loading
             
@@ -199,17 +201,14 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun togglePlayPause() {
-        performHapticFeedback()
         controller?.let { if (it.isPlaying) it.pause() else it.play() }
     }
     
     fun skipNext() {
-        performHapticFeedback()
         controller?.seekToNextMediaItem()
     }
     
     fun skipPrevious() {
-        performHapticFeedback()
         controller?.seekToPreviousMediaItem()
     }
     
@@ -217,7 +216,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Toggle shuffle mode */
     fun toggleShuffle() {
-        performHapticFeedback()
+
         val newShuffleMode = !_shuffleMode.value
         _shuffleMode.value = newShuffleMode
         
@@ -247,7 +246,6 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Cycle through repeat modes: OFF -> ALL -> ONE -> OFF */
     fun toggleRepeatMode() {
-        performHapticFeedback()
         val newRepeatMode = when (_repeatMode.value) {
             RepeatMode.OFF -> RepeatMode.ALL
             RepeatMode.ALL -> RepeatMode.ONE
@@ -260,13 +258,6 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         
         // Apply to controller
         updateRepeatMode(newRepeatMode)
-    }
-
-    /** Adjust volume with haptic feedback */
-    fun adjustVolume(increase: Boolean) {
-        performHapticFeedback()
-        // Volume adjustment is handled in the PlayerScreen via AudioManager
-        // This method is for consistency and haptic feedback
     }
 
     /** Return from Player → Library */
@@ -290,19 +281,6 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun performHapticFeedback() {
-        if (prefs.getBoolean("haptic_feedback", true)) {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                vibrator.vibrate(
-                    VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE)
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(50)
-            }
-        }
-    }
-
     private fun Track.toMediaItem(): MediaItem =
         MediaItem.Builder()
             .setUri(uri)
@@ -318,46 +296,57 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
             .build()
 
     private val playerListener = object : Player.Listener {
-        override fun onEvents(player: Player, events: Player.Events) {
-            if (events.contains(Player.EVENT_IS_PLAYING_CHANGED))
-                _isPlaying.value = player.isPlaying
 
-            if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION) ||
-                events.contains(Player.EVENT_POSITION_DISCONTINUITY)) {
+        override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
+            updateCurrentTrack()
+            _duration.value = sanitizeDuration(controller?.duration)
+        }
 
-                _currentPosition.value = player.currentPosition
-                _duration.value        = player.duration.takeIf { it > 0 } ?: 0
+        override fun onMediaMetadataChanged(metadata: MediaMetadata) {
+            updateCurrentTrack()
+            val metaDur = sanitizeDuration(metadata.durationMs)
+            if (metaDur > 0 && metaDur != _duration.value) _duration.value = metaDur
+        }
 
-                player.currentMediaItem?.mediaId?.let { id ->
-                    viewModelScope.launch {
-                        repo.getTrackById(id).collectLatest { _currentTrack.value = it }
-                    }
-                }
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            _isPlaying.value = isPlaying
+        }
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int
+        ) {
+            if (reason == Player.DISCONTINUITY_REASON_SEEK ||
+                reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT) {
+                _currentPosition.value = newPosition.positionMs
             }
         }
     }
-
     private fun startPositionTicker() {
         posTicker?.cancel()
         posTicker = viewModelScope.launch {
-            // keep a local copy so we emit only when value really changes
             var lastPos = -1L
-            var lastDur = -1L
-
             while (isActive) {
-                controller?.let { ctrl ->
-                    val pos = ctrl.currentPosition
-                    val dur = ctrl.duration
-
-                    if (pos != lastPos)  _currentPosition.value = pos
-                    if (dur > 0 && dur != lastDur) _duration.value = dur
-
+                controller?.currentPosition?.let { pos ->
+                    if (pos != lastPos) _currentPosition.value = pos
                     lastPos = pos
-                    lastDur = dur
                 }
-
-                /* Dynamic delay: 250 ms while playing, 2 s while paused */
                 delay(if (controller?.isPlaying == true) 250 else 2_000)
+            }
+        }
+    }
+    private fun sanitizeDuration(dur: Long?): Long =
+        dur?.takeIf { it > 0 } ?: 0L
+
+
+    private fun updateCurrentTrack() {
+        controller?.currentMediaItem?.mediaId?.let { id ->
+            // Cancel previous request if any
+            currentTrackJob?.cancel()
+            currentTrackJob = viewModelScope.launch {
+                repo.getTrackById(id).collectLatest {
+                    _currentTrack.value = it
+                }
             }
         }
     }

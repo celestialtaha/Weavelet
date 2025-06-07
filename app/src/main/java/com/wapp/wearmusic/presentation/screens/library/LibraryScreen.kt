@@ -46,12 +46,16 @@ fun LibraryScreen(
     viewModel: MusicPlayerViewModel,
     settingsViewModel: SettingsViewModel,
     onTrackClick: (Int) -> Unit,
-    onSettingsClick: () -> Unit  // No longer used, but kept for signature compatibility
+    //onSettingsClick: () -> Unit  // No longer used, but kept for signature compatibility
 ) {
     // 1) Observe ViewModel state
     val tracks by viewModel.tracks.collectAsState(initial = emptyList())
     val currentTrack by viewModel.currentTrack.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val listState = rememberScalingLazyListState()
+    val layoutInfo by remember { derivedStateOf { listState.layoutInfo } }
+    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+    val hasMoreTracks by viewModel.hasMoreTracks.collectAsState()
 
     // 2) Observe settings (for showAlbumArt)
     val settings by settingsViewModel.settings.collectAsState()
@@ -75,12 +79,15 @@ fun LibraryScreen(
     }
 
     // 5) Prepare list state and auto-scroll to currently playing
-    val listState = rememberScalingLazyListState()
-    LaunchedEffect(tracks, currentTrack) {
-        currentTrack?.let { playing ->
-            val playingIndex = tracks.indexOfFirst { it.id == playing.id }
-            if (playingIndex >= 0) {
-                listState.scrollToItem(playingIndex)
+    LaunchedEffect(layoutInfo) {
+        if (layoutInfo.visibleItemsInfo.isNotEmpty()) {
+            val lastVisibleItem = layoutInfo.visibleItemsInfo.last()
+            val loadThreshold = 5 // Load more when 5 items from end
+
+            if (lastVisibleItem.index >= tracks.size - loadThreshold) {
+                if (!isLoadingMore && hasMoreTracks) {
+                    viewModel.loadMoreTracks()
+                }
             }
         }
     }
@@ -92,65 +99,64 @@ fun LibraryScreen(
     ) {
         // 6) Show loading/empty/error if needed
         when (uiState) {
-            MusicPlayerUiState.Loading -> {
-                LoadingScreen()
-                return@Box
-            }
-            MusicPlayerUiState.Empty -> {
-                EmptyLibraryScreen()
-                return@Box
-            }
-            is MusicPlayerUiState.Error -> {
-                val msg = (uiState as MusicPlayerUiState.Error).message
-                ErrorScreen(msg)
-                return@Box
-            }
-            else -> { /* Success: show list */ }
-        }
+            MusicPlayerUiState.Loading -> LoadingScreen()
+            MusicPlayerUiState.Empty -> EmptyLibraryScreen()
+            is MusicPlayerUiState.Error -> ErrorScreen((uiState as MusicPlayerUiState.Error).message)
+            else -> {
+                // 7) Main track list
+                ScalingLazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // (a) Search box
+                    item {
+                        SearchBox(query = query, onQueryChange = { query = it })
+                        Spacer(Modifier.height(8.dp))
+                    }
 
-        // 7) Main track list
-        ScalingLazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // (a) Search box
-            item {
-                SearchBox(query = query, onQueryChange = { query = it })
-                Spacer(Modifier.height(8.dp))
-            }
-
-            // (b) If no results
-            if (results.isEmpty()) {
-                item {
-                    Text(
-                        stringResource(R.string.empty_library),
-                        style = MaterialTheme.typography.body2,
-                        color = MaterialTheme.colors.onSurface.copy(alpha = .6f),
-                        modifier = Modifier
-                            .padding(top = 16.dp)
-                            .fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
-                }
-            } else {
-                // (c) Each track row
-                itemsIndexed(results, key = { _, t -> t.id }) { filteredIndex, track ->
-                    val absoluteIndex = tracks.indexOfFirst { it.id == track.id }
-                    val isPlaying = (track.id == currentTrack?.id)
-
-                    TrackItem(
-                        track = track,
-                        showAlbumArt = showArt,
-                        isPlaying = isPlaying,
-                        onClick = {
-                            if (absoluteIndex >= 0) {
-                                onTrackClick(absoluteIndex)
+                    // (b) If no results
+                    if (results.isEmpty()) {
+                        item {
+                            Text(
+                                if (query.isNotEmpty()) stringResource(R.string.no_music_found)
+                                else stringResource(R.string.empty_library),
+                                style = MaterialTheme.typography.body2,
+                                color = MaterialTheme.colors.onSurface.copy(alpha = .6f),
+                                modifier = Modifier
+                                    .padding(top = 16.dp)
+                                    .fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        // (c) Each track row
+                        itemsIndexed(
+                            items = results,
+                            key = { _, track -> track.id }
+                        ) { _, track ->
+                            TrackItem(
+                                track = track,
+                                showAlbumArt = showArt,
+                                isPlaying = track.id == currentTrack?.id, // ID comparison
+                                onClick = {
+                                    val index = tracks.indexOfFirst { it.id == track.id }
+                                    if (index >= 0) onTrackClick(index)
+                                }
+                            )
+                        }
+                        if (isLoadingMore) {
+                            item {
+                                CircularProgressIndicator(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                )
                             }
                         }
-                    )
+                        item { Spacer(Modifier.height(32.dp)) }
+                    }
                 }
-                item { Spacer(Modifier.height(32.dp)) }
             }
         }
     }
