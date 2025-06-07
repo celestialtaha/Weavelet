@@ -50,7 +50,7 @@ dependencies {
     implementation("androidx.wear.compose:compose-foundation:1.5.0-beta03")
 
     // 3. Material 2 for Wear (Buttons, Text, etc.)
-    implementation("androidx.wear.compose:compose-material:1.5.0-beta03")
+    //implementation("androidx.wear.compose:compose-material:1.5.0-beta03")
 
     // 4. (Optional) Material 3 wrapper – comment in if you start migrating
     implementation("androidx.wear.compose:compose-material3")
