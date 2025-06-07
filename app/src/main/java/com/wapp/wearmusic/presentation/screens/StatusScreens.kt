@@ -9,10 +9,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.wear.compose.material3.CircularProgressIndicator
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.Text
+
 import com.wapp.wearmusic.R
-import androidx.wear.compose.material.CircularProgressIndicator
-import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.Text
 
 /**
  * Loading screen shown while tracks are being loaded
@@ -38,7 +39,7 @@ fun EmptyLibraryScreen() {
     ) {
         Text(
             text = stringResource(id = R.string.no_music_found),
-            style = MaterialTheme.typography.body1,
+            style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(16.dp)
         )
@@ -56,9 +57,9 @@ fun ErrorScreen(message: String) {
     ) {
         Text(
             text = stringResource(id = R.string.error_loading_music) + ": $message",
-            style = MaterialTheme.typography.body1,
+            style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colors.error,
+            color = MaterialTheme.colorScheme.error,
             modifier = Modifier.padding(16.dp)
         )
     }

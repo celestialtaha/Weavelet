@@ -1,6 +1,11 @@
 package com.wapp.wearmusic.presentation.screens.home
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -8,7 +13,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
-import androidx.wear.compose.material.*
+import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.Text
 import com.wapp.wearmusic.R
 
 /**
@@ -32,7 +39,7 @@ fun AboutScreen(
             item {
                 Text(
                     text = stringResource(R.string.about),
-                    style = MaterialTheme.typography.title1,
+                    style = MaterialTheme.typography.titleLarge,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 24.dp, bottom = 16.dp)
                 )
@@ -42,18 +49,18 @@ fun AboutScreen(
             item {
                 Text(
                     text = stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.title2,
+                    style = MaterialTheme.typography.titleLarge,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.padding(bottom = 4.dp)
                 )
             }
             
             item {
                 Text(
                     text = stringResource(R.string.about_description),
-                    style = MaterialTheme.typography.body2,
+                    style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                 )
             }
             
@@ -61,9 +68,9 @@ fun AboutScreen(
             item {
                 Text(
                     text = stringResource(R.string.version_info),
-                    style = MaterialTheme.typography.caption1,
+                    style = MaterialTheme.typography.labelSmall,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                    modifier = Modifier.padding(vertical = 4.dp)
                 )
             }
             
@@ -74,9 +81,6 @@ fun AboutScreen(
                     modifier = Modifier
                         .fillMaxWidth(0.8f)
                         .padding(vertical = 16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = MaterialTheme.colors.primary
-                    )
                 ) {
                     Text(stringResource(R.string.back))
                 }

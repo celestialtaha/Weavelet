@@ -8,10 +8,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
-import androidx.wear.compose.material.*
+import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.Text
 import com.wapp.wearmusic.R
-import com.wapp.wearmusic.presentation.viewmodel.MusicPlayerViewModel
-import com.wapp.wearmusic.presentation.viewmodel.SettingsViewModel
 
 /**
  * Home screen that serves as the entry point to the app
@@ -19,8 +20,6 @@ import com.wapp.wearmusic.presentation.viewmodel.SettingsViewModel
  */
 @Composable
 fun HomeScreen(
-    viewModel: MusicPlayerViewModel,
-    settingsViewModel: SettingsViewModel,
     onLibraryClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onAboutClick: () -> Unit
@@ -39,7 +38,7 @@ fun HomeScreen(
             item {
                 Text(
                     text = stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.title1,
+                    style = MaterialTheme.typography.titleLarge,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 24.dp, bottom = 16.dp)
                 )
@@ -53,7 +52,8 @@ fun HomeScreen(
                         .fillMaxWidth(0.8f)
                         .padding(vertical = 4.dp),
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = MaterialTheme.colors.primary
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.secondary
                     )
                 ) {
                     Text(stringResource(R.string.music_library))
@@ -68,7 +68,8 @@ fun HomeScreen(
                         .fillMaxWidth(0.8f)
                         .padding(vertical = 4.dp),
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = MaterialTheme.colors.primaryVariant
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.secondary
                     )
                 ) {
                     Text(stringResource(R.string.settings))
@@ -82,9 +83,6 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxWidth(0.8f)
                         .padding(vertical = 4.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = MaterialTheme.colors.secondary
-                    )
                 ) {
                     Text(stringResource(R.string.about))
                 }

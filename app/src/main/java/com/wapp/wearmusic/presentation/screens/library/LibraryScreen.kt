@@ -29,7 +29,10 @@ import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.itemsIndexed
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
-import androidx.wear.compose.material.*
+import androidx.wear.compose.material3.CircularProgressIndicator
+import androidx.wear.compose.material3.Icon
+import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.Text
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.wapp.wearmusic.R
@@ -121,8 +124,8 @@ fun LibraryScreen(
                             Text(
                                 if (query.isNotEmpty()) stringResource(R.string.no_music_found)
                                 else stringResource(R.string.empty_library),
-                                style = MaterialTheme.typography.body2,
-                                color = MaterialTheme.colors.onSurface.copy(alpha = .6f),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = .6f),
                                 modifier = Modifier
                                     .padding(top = 16.dp)
                                     .fillMaxWidth(),
@@ -171,14 +174,14 @@ private fun SearchBox(
     Box(
         Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colors.surface, CircleShape)
+            .background(MaterialTheme.colorScheme.primaryDim, CircleShape)
             .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
         if (query.isBlank()) {
             Text(
                 stringResource(R.string.search_hint),
-                style = MaterialTheme.typography.caption1,
-                color = MaterialTheme.colors.onSurface.copy(alpha = .6f),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = .6f),
                 modifier = Modifier.padding(start = 24.dp)
             )
         }
@@ -191,8 +194,8 @@ private fun SearchBox(
                 onValueChange = onQueryChange,
                 singleLine = true,
                 textStyle = TextStyle.Default.copy(
-                    color = MaterialTheme.colors.onSurface,
-                    fontSize = MaterialTheme.typography.body2.fontSize
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = MaterialTheme.typography.bodyMedium.fontSize
                 ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { kb?.hide() }),
@@ -221,7 +224,7 @@ private fun TrackItem(
 ) {
     // Height: 40.dp for art + 8.dp padding top/bottom = 56.dp total
     val rowHeight = 56.dp
-    val bgColor = if (isPlaying) MaterialTheme.colors.primary.copy(alpha = .2f) else Color.Transparent
+    val bgColor = if (isPlaying) MaterialTheme.colorScheme.primary.copy(alpha = .2f) else Color.Transparent
 
     Row(
         modifier = Modifier
@@ -245,7 +248,7 @@ private fun TrackItem(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colors.surface)
+                    .background(MaterialTheme.colorScheme.errorDim)
             )
             Spacer(Modifier.width(12.dp))
         }
@@ -256,17 +259,17 @@ private fun TrackItem(
         ) {
             Text(
                 text = track.title,
-                style = MaterialTheme.typography.title2,
+                style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(2.dp))
             Text(
                 text = track.artist,
-                style = MaterialTheme.typography.body2,
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colors.onSurface.copy(alpha = .7f)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = .7f)
             )
         }
 
@@ -274,7 +277,7 @@ private fun TrackItem(
             Icon(
                 imageVector = Icons.Default.PlayArrow,
                 contentDescription = stringResource(R.string.now_playing),
-                tint = MaterialTheme.colors.primary,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(16.dp)
             )
         }

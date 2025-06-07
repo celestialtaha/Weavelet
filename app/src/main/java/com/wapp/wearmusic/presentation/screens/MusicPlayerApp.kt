@@ -87,8 +87,6 @@ fun MusicPlayerApp(
                     }
                     showAbout -> {
                         HomeScreen(
-                            viewModel = viewModel,
-                            settingsViewModel = settingsViewModel,
                             onLibraryClick  = { /* no-op in BG */ },
                             onSettingsClick = { /* no-op in BG */ },
                             onAboutClick    = { /* no-op in BG */ }
@@ -96,8 +94,6 @@ fun MusicPlayerApp(
                     }
                     showLibrary -> {
                         HomeScreen(
-                            viewModel = viewModel,
-                            settingsViewModel = settingsViewModel,
                             onLibraryClick  = { /* no-op in BG */ },
                             onSettingsClick = { /* no-op in BG */ },
                             onAboutClick    = { /* no-op in BG */ }
@@ -144,8 +140,6 @@ fun MusicPlayerApp(
                 }
                 showHome -> {
                     HomeScreen(
-                        viewModel = viewModel,
-                        settingsViewModel = settingsViewModel,
                         onLibraryClick  = {
                             showHome    = false
                             showLibrary = true
