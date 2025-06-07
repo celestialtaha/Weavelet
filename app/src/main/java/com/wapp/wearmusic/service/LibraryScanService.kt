@@ -3,7 +3,6 @@ package com.wapp.wearmusic.service
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
-import androidx.lifecycle.lifecycleScope
 import com.wapp.wearmusic.data.repository.MusicRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
