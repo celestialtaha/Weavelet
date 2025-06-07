@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.lifecycle.AndroidViewModel
@@ -56,6 +57,9 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val _duration        = MutableStateFlow(0L)
     private val _shuffleMode     = MutableStateFlow(false)
     private val _repeatMode      = MutableStateFlow(RepeatMode.OFF)
+    private val _currentPage = MutableStateFlow(0)
+    private val _isLoadingMore = MutableStateFlow(false)
+    private val _hasMoreTracks = MutableStateFlow(true)
 
     val uiState:        StateFlow<MusicPlayerUiState> = _uiState.asStateFlow()
     val tracks:         StateFlow<List<Track>>        = _tracks.asStateFlow()
@@ -65,6 +69,9 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     val duration:       StateFlow<Long>               = _duration.asStateFlow()
     val shuffleMode:    StateFlow<Boolean>            = _shuffleMode.asStateFlow()
     val repeatMode:     StateFlow<RepeatMode>         = _repeatMode.asStateFlow()
+    val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
+    val hasMoreTracks: StateFlow<Boolean> = _hasMoreTracks.asStateFlow()
 
     /* ------------------------------------------------------------------ */
     /* Init                                                                */
@@ -104,18 +111,73 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     /* Public commands (UI)                                                */
     /* ------------------------------------------------------------------ */
 
-    fun loadTracks(): Job = viewModelScope.launch {
-        _uiState.value = MusicPlayerUiState.Loading
-        try {
-            repo.getAllTracks().collectLatest { list ->
-                originalTrackList = list
-                _tracks.value = if (_shuffleMode.value) list.shuffled() else list
-                _uiState.value =
-                    if (list.isEmpty()) MusicPlayerUiState.Empty
-                    else                MusicPlayerUiState.Success
+   /**
+     * Load tracks with pagination
+     */
+    public fun loadTracks() {
+        viewModelScope.launch {
+            _uiState.value = MusicPlayerUiState.Loading
+            
+            try {
+                repo.getTracksPage(0, 50).collect { page ->
+                    _tracks.value = page.tracks
+                    _currentPage.value = 0
+                    _hasMoreTracks.value = page.hasMore
+                    _uiState.value = if (page.tracks.isEmpty()) {
+                        MusicPlayerUiState.Empty
+                    } else {
+                        MusicPlayerUiState.Success
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.value = MusicPlayerUiState.Error(e.message ?: "Unknown error")
             }
-        } catch (e: Exception) {
-            _uiState.value = MusicPlayerUiState.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    /**
+     * Load more tracks (pagination)
+     */
+    fun loadMoreTracks() {
+        if (_isLoadingMore.value || !_hasMoreTracks.value) return
+        
+        viewModelScope.launch {
+            _isLoadingMore.value = true
+            
+            try {
+                val nextPage = _currentPage.value + 1
+                repo.getTracksPage(nextPage * 50, 50).collect { page ->
+                    val currentTracks = _tracks.value.toMutableList()
+                    currentTracks.addAll(page.tracks)
+                    _tracks.value = currentTracks
+                    _currentPage.value = nextPage
+                    _hasMoreTracks.value = page.hasMore
+                }
+            } catch (e: Exception) {
+                // Handle error
+            } finally {
+                _isLoadingMore.value = false
+            }
+        }
+    }
+
+    /**
+     * Load album art for a specific track
+     */
+    fun loadAlbumArt(track: Track, onLoaded: (Bitmap?) -> Unit) {
+        viewModelScope.launch {
+            val bitmap = repo.loadAlbumArt(track)
+            onLoaded(bitmap)
+        }
+    }
+
+    /**
+     * Refresh library in background
+     */
+    fun refreshLibrary() {
+        viewModelScope.launch {
+            repo.refreshLibraryInBackground()
+            loadTracks() // Reload first page
         }
     }
 
