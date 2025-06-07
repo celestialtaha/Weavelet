@@ -53,7 +53,7 @@ dependencies {
     implementation("androidx.wear.compose:compose-material:1.5.0-beta03")
 
     // 4. (Optional) Material 3 wrapper – comment in if you start migrating
-    // implementation("androidx.wear.compose:compose-material3")
+    implementation("androidx.wear.compose:compose-material3")
 
     implementation(libs.play.services.wearable)
     implementation(libs.ui)

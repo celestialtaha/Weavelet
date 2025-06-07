@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wapp.wearmusic.data.model.Settings
+import com.wapp.wearmusic.data.model.RepeatMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,7 +33,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             autoPlayOnStart = sharedPreferences.getBoolean(KEY_AUTO_PLAY, false),
             showAlbumArt = sharedPreferences.getBoolean(KEY_SHOW_ALBUM_ART, true),
             enableComplication = sharedPreferences.getBoolean(KEY_ENABLE_COMPLICATION, true),
-            sortBy = sharedPreferences.getString(KEY_SORT_BY, "title") ?: "title"
+            sortBy = sharedPreferences.getString(KEY_SORT_BY, "title") ?: "title",
+            shuffleMode = sharedPreferences.getBoolean(KEY_SHUFFLE_MODE, false),
+            repeatMode = RepeatMode.valueOf(
+                sharedPreferences.getString(KEY_REPEAT_MODE, RepeatMode.OFF.name) ?: RepeatMode.OFF.name
+            ),
+            hapticFeedback = sharedPreferences.getBoolean(KEY_HAPTIC_FEEDBACK, true)
         )
     }
     
@@ -46,6 +52,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 .putBoolean(KEY_SHOW_ALBUM_ART, settings.showAlbumArt)
                 .putBoolean(KEY_ENABLE_COMPLICATION, settings.enableComplication)
                 .putString(KEY_SORT_BY, settings.sortBy)
+                .putBoolean(KEY_SHUFFLE_MODE, settings.shuffleMode)
+                .putString(KEY_REPEAT_MODE, settings.repeatMode.name)
+                .putBoolean(KEY_HAPTIC_FEEDBACK, settings.hapticFeedback)
                 .apply()
         }
     }
@@ -88,6 +97,33 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _settings.value = newSettings
         saveSettings(newSettings)
     }
+
+    /**
+     * Update shuffle mode setting
+     */
+    fun setShuffleMode(enabled: Boolean) {
+        val newSettings = _settings.value.copy(shuffleMode = enabled)
+        _settings.value = newSettings
+        saveSettings(newSettings)
+    }
+
+    /**
+     * Update repeat mode setting
+     */
+    fun setRepeatMode(mode: RepeatMode) {
+        val newSettings = _settings.value.copy(repeatMode = mode)
+        _settings.value = newSettings
+        saveSettings(newSettings)
+    }
+
+    /**
+     * Update haptic feedback setting
+     */
+    fun setHapticFeedback(enabled: Boolean) {
+        val newSettings = _settings.value.copy(hapticFeedback = enabled)
+        _settings.value = newSettings
+        saveSettings(newSettings)
+    }
     
     /**
      * Enable or disable complication updates
@@ -98,14 +134,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             // Update the static enabled state in the complication provider
             com.wapp.wearmusic.complication.MusicComplicationProvider.enabled.value = enabled
             
-            // Request a complication update
-            val complicationManager = androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
-                .create(getApplication(), android.content.ComponentName(getApplication(), 
-                    com.wapp.wearmusic.complication.MusicComplicationProvider::class.java))
-            complicationManager.requestUpdateAll()
+            Log.d("SettingsViewModel", "Complication state updated: $enabled")
         } catch (e: Exception) {
-            // Handle exception if complication provider is not found
-            Log.e("SettingsViewModel", "Error updating complication state: ${e.message}")
+            Log.e("SettingsViewModel", "Failed to update complication state", e)
         }
     }
     
@@ -114,5 +145,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         private const val KEY_SHOW_ALBUM_ART = "show_album_art"
         private const val KEY_ENABLE_COMPLICATION = "enable_complication"
         private const val KEY_SORT_BY = "sort_by"
+        private const val KEY_SHUFFLE_MODE = "shuffle_mode"
+        private const val KEY_REPEAT_MODE = "repeat_mode"
+        private const val KEY_HAPTIC_FEEDBACK = "haptic_feedback"
     }
 }

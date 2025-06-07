@@ -10,6 +10,7 @@
     <string name="unknown_artist">Unknown Artist</string>
     <string name="unknown_album">Unknown Album</string>
     <string name="nothing_playing">Nothing playing</string>
+    <string name="no_track_selected">No Track Selected</string>
     
     <!-- Playback Controls -->
     <string name="play">Play</string>

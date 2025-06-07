@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.VibrationEffect
+import android.os.Vibrator
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
@@ -12,6 +14,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.wapp.wearmusic.data.model.Track
+import com.wapp.wearmusic.data.model.RepeatMode
 import com.wapp.wearmusic.data.repository.MusicRepository
 import com.wapp.wearmusic.service.MusicPlaybackService
 import kotlinx.coroutines.*
@@ -30,6 +33,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo  = MusicRepository(app)
     private val prefs = app.getSharedPreferences("music_player_settings", Context.MODE_PRIVATE)
+    private val vibrator = app.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
 
     /* ------------------------------------------------------------------ */
     /* MediaController                                                     */
@@ -50,6 +54,8 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val _isPlaying       = MutableStateFlow(false)
     private val _currentPosition = MutableStateFlow(0L)
     private val _duration        = MutableStateFlow(0L)
+    private val _shuffleMode     = MutableStateFlow(false)
+    private val _repeatMode      = MutableStateFlow(RepeatMode.OFF)
 
     val uiState:        StateFlow<MusicPlayerUiState> = _uiState.asStateFlow()
     val tracks:         StateFlow<List<Track>>        = _tracks.asStateFlow()
@@ -57,12 +63,15 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     val isPlaying:      StateFlow<Boolean>            = _isPlaying.asStateFlow()
     val currentPosition:StateFlow<Long>               = _currentPosition.asStateFlow()
     val duration:       StateFlow<Long>               = _duration.asStateFlow()
+    val shuffleMode:    StateFlow<Boolean>            = _shuffleMode.asStateFlow()
+    val repeatMode:     StateFlow<RepeatMode>         = _repeatMode.asStateFlow()
 
     /* ------------------------------------------------------------------ */
     /* Init                                                                */
     /* ------------------------------------------------------------------ */
 
     private var posTicker: Job? = null
+    private var originalTrackList: List<Track> = emptyList()
 
     init {
         viewModelScope.launch {
@@ -72,6 +81,15 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
 
             controller?.addListener(playerListener) // ✅ correct listener type
             startPositionTicker()
+            
+            // Load saved settings
+            _shuffleMode.value = prefs.getBoolean("shuffle_mode", false)
+            _repeatMode.value = RepeatMode.valueOf(
+                prefs.getString("repeat_mode", RepeatMode.OFF.name) ?: RepeatMode.OFF.name
+            )
+            
+            // Apply repeat mode to controller
+            updateRepeatMode(_repeatMode.value)
         }
         loadTracks()              // initial library scan
     }
@@ -90,7 +108,8 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         _uiState.value = MusicPlayerUiState.Loading
         try {
             repo.getAllTracks().collectLatest { list ->
-                _tracks.value  = list
+                originalTrackList = list
+                _tracks.value = if (_shuffleMode.value) list.shuffled() else list
                 _uiState.value =
                     if (list.isEmpty()) MusicPlayerUiState.Empty
                     else                MusicPlayerUiState.Success
@@ -106,7 +125,6 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
 
         // ensure service is running (Android O+)
         val ctx = getApplication<Application>()
-        //ctx.startForegroundService(Intent(ctx, MusicPlaybackService::class.java)) !! keep this commented
         ctx.startService(Intent(ctx, MusicPlaybackService::class.java))
 
         controller?.apply {
@@ -117,10 +135,76 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         _currentTrack.value = list.getOrNull(startIndex)
     }
 
-    fun togglePlayPause() = controller?.let { if (it.isPlaying) it.pause() else it.play() }
-    fun skipNext()        = controller?.seekToNextMediaItem()
-    fun skipPrevious()    = controller?.seekToPreviousMediaItem()
+    fun togglePlayPause() {
+        performHapticFeedback()
+        controller?.let { if (it.isPlaying) it.pause() else it.play() }
+    }
+    
+    fun skipNext() {
+        performHapticFeedback()
+        controller?.seekToNextMediaItem()
+    }
+    
+    fun skipPrevious() {
+        performHapticFeedback()
+        controller?.seekToPreviousMediaItem()
+    }
+    
     fun seekTo(pos: Long) = controller?.seekTo(pos)
+
+    /** Toggle shuffle mode */
+    fun toggleShuffle() {
+        performHapticFeedback()
+        val newShuffleMode = !_shuffleMode.value
+        _shuffleMode.value = newShuffleMode
+        
+        // Save to preferences
+        prefs.edit().putBoolean("shuffle_mode", newShuffleMode).apply()
+        
+        // Update track list
+        _tracks.value = if (newShuffleMode) {
+            originalTrackList.shuffled()
+        } else {
+            originalTrackList
+        }
+        
+        // If currently playing, update the controller's playlist
+        if (_currentTrack.value != null) {
+            val currentTrack = _currentTrack.value
+            val newIndex = _tracks.value.indexOfFirst { it.id == currentTrack?.id }
+            if (newIndex >= 0) {
+                controller?.setMediaItems(
+                    _tracks.value.map { it.toMediaItem() },
+                    newIndex,
+                    controller?.currentPosition ?: 0
+                )
+            }
+        }
+    }
+
+    /** Cycle through repeat modes: OFF -> ALL -> ONE -> OFF */
+    fun toggleRepeatMode() {
+        performHapticFeedback()
+        val newRepeatMode = when (_repeatMode.value) {
+            RepeatMode.OFF -> RepeatMode.ALL
+            RepeatMode.ALL -> RepeatMode.ONE
+            RepeatMode.ONE -> RepeatMode.OFF
+        }
+        _repeatMode.value = newRepeatMode
+        
+        // Save to preferences
+        prefs.edit().putString("repeat_mode", newRepeatMode.name).apply()
+        
+        // Apply to controller
+        updateRepeatMode(newRepeatMode)
+    }
+
+    /** Adjust volume with haptic feedback */
+    fun adjustVolume(increase: Boolean) {
+        performHapticFeedback()
+        // Volume adjustment is handled in the PlayerScreen via AudioManager
+        // This method is for consistency and haptic feedback
+    }
 
     /** Return from Player → Library */
     fun clearCurrentTrack() {
@@ -132,6 +216,29 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     /* ------------------------------------------------------------------ */
     /* Internal helpers                                                    */
     /* ------------------------------------------------------------------ */
+
+    private fun updateRepeatMode(mode: RepeatMode) {
+        controller?.let { ctrl ->
+            ctrl.repeatMode = when (mode) {
+                RepeatMode.OFF -> Player.REPEAT_MODE_OFF
+                RepeatMode.ALL -> Player.REPEAT_MODE_ALL
+                RepeatMode.ONE -> Player.REPEAT_MODE_ONE
+            }
+        }
+    }
+
+    private fun performHapticFeedback() {
+        if (prefs.getBoolean("haptic_feedback", true)) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                vibrator.vibrate(
+                    VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(50)
+            }
+        }
+    }
 
     private fun Track.toMediaItem(): MediaItem =
         MediaItem.Builder()
