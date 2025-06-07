@@ -102,6 +102,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        controller?.removeListener(playerListener) // <-- Add this line
         controller?.release()
         posTicker?.cancel()
         super.onCleared()
