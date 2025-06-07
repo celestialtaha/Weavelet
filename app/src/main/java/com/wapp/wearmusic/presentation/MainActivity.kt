@@ -11,11 +11,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.runtime.LaunchedEffect
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.material3.TimeText
-import androidx.wear.tooling.preview.devices.WearDevices
 import com.wapp.wearmusic.R
 import com.wapp.wearmusic.complication.MusicComplicationProvider
 import com.wapp.wearmusic.presentation.screens.MusicPlayerApp
@@ -33,7 +33,8 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            viewModel.loadTracks()
+            // Permission granted - proceed with app initialization
+            initializeApp()
         } else {
             showPermissionRationale()
         }
@@ -45,10 +46,6 @@ class MainActivity : ComponentActivity() {
 
         initialiseComplicationSwitch()
         checkOrRequestPermission()
-
-        setContent {
-            WearMusicApp(viewModel, settingsViewModel)
-        }
     }
 
     /** Reads the saved flag once and pushes it to the complication provider. */
@@ -67,11 +64,17 @@ class MainActivity : ComponentActivity() {
 
         when {
             ContextCompat.checkSelfPermission(this, permission) ==
-                    PackageManager.PERMISSION_GRANTED          -> viewModel.loadTracks()
+                    PackageManager.PERMISSION_GRANTED          -> initializeApp()
 
             shouldShowRequestPermissionRationale(permission)  -> showPermissionRationale()
 
             else                                             -> permissionLauncher.launch(permission)
+        }
+    }
+
+    private fun initializeApp() {
+        setContent {
+            WearMusicApp()
         }
     }
 
@@ -90,18 +93,17 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun WearMusicApp(
-    viewModel: MusicPlayerViewModel,
-    settingsViewModel: SettingsViewModel
-) {
+fun WearMusicApp() {
+    val viewModel: MusicPlayerViewModel = viewModel()
+    val settingsViewModel: SettingsViewModel = viewModel()
+
+    // Initialize app after ViewModel is ready
+    LaunchedEffect(Unit) {
+        viewModel.loadTracks()
+    }
+
     WearMusicTheme {
         TimeText()
-        MusicPlayerApp(viewModel, settingsViewModel)
+        MusicPlayerApp()
     }
-}
-
-@Preview(device = WearDevices.SMALL_ROUND, showSystemUi = true)
-@Composable
-fun DefaultPreview() {
-    WearMusicTheme { TimeText() }
 }
