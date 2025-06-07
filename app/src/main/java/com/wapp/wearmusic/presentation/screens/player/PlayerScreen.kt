@@ -65,10 +65,11 @@ fun PlayerScreen(
     settingsViewModel: SettingsViewModel
 ) {
     /* 1 ─── Collect state (lifecycle-aware) */
-    val track      by viewModel.currentTrack.collectAsStateWithLifecycle()
-    val playing    by viewModel.isPlaying.collectAsStateWithLifecycle()
-    val posMs      by viewModel.currentPosition.collectAsStateWithLifecycle()
-    val durMs      by viewModel.duration.collectAsStateWithLifecycle()
+    val playbackState by viewModel.playbackState.collectAsState()
+    val track = playbackState.currentTrack
+    val playing = playbackState.isPlaying
+    val posMs = playbackState.position
+    val durMs = playbackState.duration
     val shuffleOn  by viewModel.shuffleMode.collectAsStateWithLifecycle()
     val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
     val hapticEnabled by viewModel.hapticEnabled.collectAsStateWithLifecycle()

@@ -39,26 +39,33 @@ import com.wapp.wearmusic.R
 import com.wapp.wearmusic.data.model.Track
 import com.wapp.wearmusic.presentation.viewmodel.MusicPlayerUiState
 import com.wapp.wearmusic.presentation.viewmodel.MusicPlayerViewModel
+import com.wapp.wearmusic.presentation.viewmodel.PaginationState
 import com.wapp.wearmusic.presentation.viewmodel.SettingsViewModel
 import com.wapp.wearmusic.presentation.screens.ErrorScreen
 import com.wapp.wearmusic.presentation.screens.LoadingScreen
 import com.wapp.wearmusic.presentation.screens.EmptyLibraryScreen
+import kotlinx.coroutines.delay
 
 @Composable
 fun LibraryScreen(
     viewModel: MusicPlayerViewModel,
     settingsViewModel: SettingsViewModel,
     onTrackClick: (Int) -> Unit,
-    //onSettingsClick: () -> Unit  // No longer used, but kept for signature compatibility
 ) {
+    LaunchedEffect(Unit) {
+        viewModel.loadTracks()
+    }
     // 1) Observe ViewModel state
     val tracks by viewModel.tracks.collectAsState(initial = emptyList())
-    val currentTrack by viewModel.currentTrack.collectAsState()
+    val playbackState by viewModel.playbackState.collectAsState()
+    val currentTrack = playbackState.currentTrack
+    // val position = playbackState.position TODO: use this
     val uiState by viewModel.uiState.collectAsState()
+    val paginationState by viewModel.paginationState.collectAsState()
+    val hasMoreTracks by viewModel.hasMoreTracks.collectAsState()
+
     val listState = rememberScalingLazyListState()
     val layoutInfo by remember { derivedStateOf { listState.layoutInfo } }
-    val isLoadingMore by viewModel.isLoadingMore.collectAsState()
-    val hasMoreTracks by viewModel.hasMoreTracks.collectAsState()
 
     // 2) Observe settings (for showAlbumArt)
     val settings by settingsViewModel.settings.collectAsState()
@@ -81,17 +88,21 @@ fun LibraryScreen(
         }
     }
 
-    // 5) Prepare list state and auto-scroll to currently playing
-    LaunchedEffect(layoutInfo) {
-        if (layoutInfo.visibleItemsInfo.isNotEmpty()) {
-            val lastVisibleItem = layoutInfo.visibleItemsInfo.last()
-            val loadThreshold = 5 // Load more when 5 items from end
+    // 5) Auto-load more when scrolling near the end
+    LaunchedEffect(layoutInfo, hasMoreTracks, paginationState) {
+        if (layoutInfo.visibleItemsInfo.isNotEmpty() &&
+            paginationState is PaginationState.Idle &&
+            hasMoreTracks) {
+                val lastVisibleItem = layoutInfo.visibleItemsInfo.last()
+                val loadThreshold = 5 // Load more when 5 items from end
 
-            if (lastVisibleItem.index >= tracks.size - loadThreshold) {
-                if (!isLoadingMore && hasMoreTracks) {
-                    viewModel.loadMoreTracks()
+                if (lastVisibleItem.index >= tracks.size - loadThreshold) {
+                    // Add small delay to prevent multiple rapid calls
+                    delay(100)
+                    if (paginationState is PaginationState.Idle) {
+                        viewModel.loadMoreTracks()
+                    }
                 }
-            }
         }
     }
 
@@ -102,10 +113,10 @@ fun LibraryScreen(
     ) {
         // 6) Show loading/empty/error if needed
         when (uiState) {
-            MusicPlayerUiState.Loading -> LoadingScreen()
-            MusicPlayerUiState.Empty -> EmptyLibraryScreen()
+            is MusicPlayerUiState.Loading -> LoadingScreen()
+            is MusicPlayerUiState.Empty -> EmptyLibraryScreen()
             is MusicPlayerUiState.Error -> ErrorScreen((uiState as MusicPlayerUiState.Error).message)
-            else -> {
+            MusicPlayerUiState.Success -> {
                 // 7) Main track list
                 ScalingLazyColumn(
                     state = listState,
@@ -148,7 +159,9 @@ fun LibraryScreen(
                                 }
                             )
                         }
-                        if (isLoadingMore) {
+
+                        // (d) Pagination loading indicator
+                        if (paginationState is PaginationState.LoadingMore) {
                             item {
                                 CircularProgressIndicator(
                                     modifier = Modifier
@@ -157,14 +170,28 @@ fun LibraryScreen(
                                 )
                             }
                         }
+
                         item { Spacer(Modifier.height(32.dp)) }
                     }
                 }
             }
         }
+
+        // 8) Show initial loading indicator during first load
+        if (paginationState is PaginationState.LoadingFirst) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        }
     }
 }
 
+// SearchBox and TrackItem remain the same as before
 @Composable
 private fun SearchBox(
     query: String,
