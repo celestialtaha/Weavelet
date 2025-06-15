@@ -79,12 +79,10 @@ fun PlayerScreen(
         .map { it.showAlbumArt }                    // take only the Boolean field
         .collectAsStateWithLifecycle(initialValue = true)
 
-    /* 2 ─── Derived progress */
-//    val progress by remember {
-//        derivedStateOf { if (durMs > 0) posMs / durMs.toFloat() else 0f }
-//    }
     val progress by remember(posMs, durMs) {
-        mutableFloatStateOf( if (durMs > 0) posMs / durMs.toFloat() else 0f )
+        derivedStateOf {
+            if (durMs > 0) posMs / durMs.toFloat() else 0f
+        }
     }
 
     /* 3 ─── Rotary plumbing */
@@ -93,7 +91,7 @@ fun PlayerScreen(
     val focusReq  = remember { FocusRequester() }
 
     /* Accumulator for smoother, one-step-per-detent behaviour */
-    var accumPx by remember { mutableStateOf(0f) }
+    var accumPx by remember { mutableFloatStateOf(0f) }
     val PIXELS_PER_STEP = 48f         // tweak if your hardware feels different
 
     Box(
