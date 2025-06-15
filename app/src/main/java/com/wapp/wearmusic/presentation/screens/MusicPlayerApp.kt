@@ -20,6 +20,15 @@ import com.wapp.wearmusic.presentation.viewmodel.SettingsViewModel
 /**
  * Root composable that hosts Library ⇄ Player ⇄ Settings
  */
+// Define sealed class OUTSIDE the composable function at the top level
+sealed class Screen {
+    object Home : Screen()
+    object Library : Screen()
+    object Player : Screen()
+    object Settings : Screen()
+    object About : Screen()
+}
+
 @Composable
 fun MusicPlayerApp() {
     val viewModel: MusicPlayerViewModel = viewModel()
@@ -30,11 +39,9 @@ fun MusicPlayerApp() {
     val playbackState by viewModel.playbackState.collectAsState()
     val currentTrack = playbackState.currentTrack
 
-    var showHome by remember { mutableStateOf(true) }
-    var showLibrary by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
-    var showAbout by remember { mutableStateOf(false) }
-    var showPlayer by remember { mutableStateOf(false) }
+    // Single source of truth for navigation
+    var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
+    val swipeState = rememberSwipeToDismissBoxState()
 
     // Track if we've triggered initial load
     var initialLoadTriggered by remember { mutableStateOf(false) }
@@ -47,134 +54,95 @@ fun MusicPlayerApp() {
         }
     }
 
-    val swipeState = rememberSwipeToDismissBoxState()
-
+    // Handle swipe dismissals
     LaunchedEffect(swipeState.currentValue) {
         if (swipeState.currentValue == SwipeToDismissValue.Dismissed) {
             swipeState.snapTo(SwipeToDismissValue.Default)
-            when {
-                showSettings -> showSettings = false
-                showAbout -> {
-                    showAbout = false
-                    showHome = true
-                }
-                showPlayer -> {
-                    showPlayer = false
-                    showLibrary = true
-                }
-                showLibrary -> {
-                    showLibrary = false
-                    showHome = true
-                }
-                else -> showHome = true
+            currentScreen = when (currentScreen) {
+                Screen.Settings -> Screen.Home
+                Screen.About -> Screen.Home
+                Screen.Player -> Screen.Library
+                Screen.Library -> Screen.Home
+                else -> Screen.Home
             }
         }
     }
 
     BasicSwipeToDismissBox(
         state = swipeState,
-        userSwipeEnabled = showSettings || showAbout || showLibrary || showPlayer,
+        userSwipeEnabled = currentScreen != Screen.Home,
         backgroundKey = "Background",
         contentKey = "Foreground"
     ) { isBackground ->
         if (isBackground) {
-            Box(Modifier.fillMaxSize()) {
-                when {
-                    showSettings && showLibrary -> {
-                        LibraryScreen(
-                            viewModel = viewModel,
-                            settingsViewModel = settingsViewModel,
-                            onTrackClick = { idx ->
-                                viewModel.playTracks(idx)
-                                showLibrary = false
-                                showPlayer = true
-                            }
-                        )
-                    }
-                    showSettings && showPlayer -> {
-                        PlayerScreen(
-                            viewModel = viewModel,
-                            settingsViewModel = settingsViewModel
-                        )
-                    }
-                    showAbout -> {
-                        HomeScreen(
-                            onLibraryClick = { /* no-op */ },
-                            onSettingsClick = { /* no-op */ },
-                            onAboutClick = { /* no-op */ }
-                        )
-                    }
-                    showLibrary -> {
-                        HomeScreen(
-                            onLibraryClick = { /* no-op */ },
-                            onSettingsClick = { /* no-op */ },
-                            onAboutClick = { /* no-op */ }
-                        )
-                    }
-                    showPlayer -> {
-                        LibraryScreen(
-                            viewModel = viewModel,
-                            settingsViewModel = settingsViewModel,
-                            onTrackClick = { /* no-op */ }
-                        )
-                    }
+            // Background shows previous screen
+            when (currentScreen) {
+                Screen.Library -> HomeScreen(
+                    onLibraryClick = { /* Handled in foreground */ },
+                    onSettingsClick = { /* Handled in foreground */ },
+                    onAboutClick = { /* Handled in foreground */ }
+                )
+                Screen.Player -> LibraryContent(
+                    viewModel = viewModel,
+                    settingsViewModel = settingsViewModel
+                ) { index ->
+                    viewModel.playTracks(index)
+                    currentScreen = Screen.Player
                 }
+                Screen.Settings, Screen.About -> HomeScreen(
+                    onLibraryClick = { /* Handled in foreground */ },
+                    onSettingsClick = { /* Handled in foreground */ },
+                    onAboutClick = { /* Handled in foreground */ }
+                )
+                else -> Box(Modifier.fillMaxSize()) // Empty background for home
             }
         } else {
-            when {
-                showSettings -> {
-                    SettingsScreen(
-                        settingsViewModel = settingsViewModel,
-                        onBackClick = { showSettings = false }
-                    )
+            // Foreground shows current screen
+            when (currentScreen) {
+                Screen.Home -> HomeScreen(
+                    onLibraryClick = { currentScreen = Screen.Library },
+                    onSettingsClick = { currentScreen = Screen.Settings },
+                    onAboutClick = { currentScreen = Screen.About }
+                )
+                Screen.Library -> LibraryContent(
+                    viewModel = viewModel,
+                    settingsViewModel = settingsViewModel
+                ) { index ->
+                    viewModel.playTracks(index)
+                    currentScreen = Screen.Player
                 }
-                showAbout -> {
-                    AboutScreen(
-                        onBackClick = {
-                            showAbout = false
-                            showHome = true
-                        }
-                    )
-                }
-                showPlayer -> {
-                    PlayerScreen(
-                        viewModel = viewModel,
-                        settingsViewModel = settingsViewModel
-                    )
-                }
-                showHome -> {
-                    HomeScreen(
-                        onLibraryClick = {
-                            showHome = false
-                            showLibrary = true
-                        },
-                        onSettingsClick = { showSettings = true },
-                        onAboutClick = {
-                            showHome = false
-                            showAbout = true
-                        }
-                    )
-                }
-                showLibrary || (uiState == MusicPlayerUiState.Success && currentTrack == null) -> {
-                    when (uiState) {
-                        MusicPlayerUiState.Loading -> LoadingScreen()
-                        MusicPlayerUiState.Empty -> EmptyLibraryScreen()
-                        is MusicPlayerUiState.Error -> ErrorScreen((uiState as MusicPlayerUiState.Error).message)
-                        MusicPlayerUiState.Success -> {
-                            LibraryScreen(
-                                viewModel = viewModel,
-                                settingsViewModel = settingsViewModel,
-                                onTrackClick = { idx ->
-                                    viewModel.playTracks(idx)
-                                    showLibrary = false
-                                    showPlayer = true
-                                }
-                            )
-                        }
-                    }
-                }
-                else -> showHome = true
+                Screen.Player -> PlayerScreen(
+                    viewModel = viewModel,
+                    settingsViewModel = settingsViewModel
+                )
+                Screen.Settings -> SettingsScreen(
+                    settingsViewModel = settingsViewModel,
+                    onBackClick = { currentScreen = Screen.Home }
+                )
+                Screen.About -> AboutScreen(
+                    onBackClick = { currentScreen = Screen.Home }
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun LibraryContent(
+    viewModel: MusicPlayerViewModel,
+    settingsViewModel: SettingsViewModel,
+    onTrackClick: (Int) -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    when (uiState) {
+        MusicPlayerUiState.Loading -> LoadingScreen()
+        MusicPlayerUiState.Empty -> EmptyLibraryScreen()
+        is MusicPlayerUiState.Error -> ErrorScreen((uiState as MusicPlayerUiState.Error).message)
+        MusicPlayerUiState.Success -> LibraryScreen(
+            viewModel = viewModel,
+            settingsViewModel = settingsViewModel,
+            onTrackClick = onTrackClick
+        )
     }
 }
