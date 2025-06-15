@@ -85,6 +85,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val mediaItemCache = mutableMapOf<String, MediaItem>()
 
     override fun onCleared() {
+        progressUpdateJob?.cancel()
         viewModelScope.launch {
             controllerDeferred.await().removeListener(playerListener)
             controllerDeferred.await().release()
@@ -265,7 +266,8 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
             updateCurrentTrack()
             _playbackState.value = _playbackState.value.copy(
-                duration = sanitizeDuration(controller?.duration)
+                duration = sanitizeDuration(controller?.duration),
+                position = 0L
             )
         }
 
@@ -274,12 +276,15 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
             val metaDur = sanitizeDuration(metadata.durationMs)
             if (metaDur > 0) {
                 _playbackState.value = _playbackState.value.copy(
-                    duration = metaDur
+                    duration = metaDur,
+                    position = 0L
                 )
             }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying) startProgressUpdates()
+            else progressUpdateJob?.cancel()
             _playbackState.value = _playbackState.value.copy(isPlaying = isPlaying)
         }
 
@@ -288,27 +293,49 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
             newPosition: Player.PositionInfo,
             reason: Int
         ) {
-            _playbackState.value = _playbackState.value.copy(
-                position = newPosition.positionMs
-            )
+            _playbackState.update { it.copy(position = controller?.currentPosition ?: 0L) }
         }
 
-        override fun onEvents(player: Player, events: Player.Events) {
-            if (events.contains(Player.EVENT_POSITION_DISCONTINUITY)) {
-                _playbackState.value = _playbackState.value.copy(
-                    position = player.currentPosition
-                )
+//        override fun onEvents(player: Player, events: Player.Events) {
+//            if (events.contains(Player.EVENT_POSITION_DISCONTINUITY)) {
+//                _playbackState.update { it.copy(position = player.currentPosition) }
+//            }
+//        }
+    }
+
+    private var progressUpdateJob: Job? = null
+
+    private fun startProgressUpdates() {
+        progressUpdateJob?.cancel()
+        progressUpdateJob = viewModelScope.launch {
+            while (true) {
+                delay(500)
+                controller?.let {
+                    _playbackState.update { state ->
+                        state.copy(position = it.currentPosition)
+                    }
+                }
             }
         }
     }
 
-    private fun sanitizeDuration(dur: Long?): Long = dur?.takeIf { it > 0 } ?: 0L
+    private fun sanitizeDuration(dur: Long?): Long {
+        return dur?.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0L
+    }
 
     private fun updateCurrentTrack() {
-        viewModelScope.launch {
-            val mediaId = controller?.currentMediaItem?.mediaId ?: return@launch
-            repo.getTrackById(mediaId).collectLatest { track ->
-                _playbackState.value = _playbackState.value.copy(currentTrack = track)
+        val mediaId = controller?.currentMediaItem?.mediaId ?: return
+        val cachedTrack = _tracks.value.find { it.id == mediaId }
+
+        if (cachedTrack != null) {
+            _playbackState.update { it.copy(currentTrack = cachedTrack) }
+        } else {
+            viewModelScope.launch {
+                repo.getTrackById(mediaId).collectLatest { track ->
+                    if (track != null) {
+                        _playbackState.update { it.copy(currentTrack = track) }
+                    }
+                }
             }
         }
     }
