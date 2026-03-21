@@ -1,23 +1,32 @@
 [versions]
-agp = "8.9.2"
+agp = "9.1.0"
 coilCompose = "2.7.0"
-kotlin = "2.0.21"
-kotlinxCoroutinesAndroid = "1.8.1"
-kotlinxCoroutinesPlayServices = "1.8.1"
-lifecycleRuntimeCompose = "2.9.1"
-lifecycleViewmodelCompose = "2.9.1"
+kotlin = "2.2.10"
+kotlinxCoroutinesAndroid = "1.10.2"
+kotlinxCoroutinesPlayServices = "1.10.2"
+lifecycleRuntimeCompose = "2.10.0"
+lifecycleViewmodelCompose = "2.10.0"
 materialIconsCore = "1.7.8"
 materialIconsExtended = "1.7.8"
-media = "1.7.0"
-media3Common = "1.7.1"
-media3Exoplayer = "1.7.1"
-media3Session = "1.7.1"
-media3Ui = "1.7.1"
+media = "1.7.1"
+media3Common = "1.9.3"
+media3Exoplayer = "1.9.3"
+media3Session = "1.9.3"
+media3Ui = "1.9.3"
 playServicesWearable = "19.0.0"
 wearToolingPreview = "1.0.0"
-activityCompose = "1.10.1"
-coreSplashscreen = "1.0.1"
+activityCompose = "1.13.0"
+coreSplashscreen = "1.2.0"
 tilesTooling = "1.5.0"
+compose = "1.7.8"
+wearComposeFoundation = "1.5.6"
+wearComposeMaterial3 = "1.5.6"
+wearTiles = "1.5.0"
+wearProtolayout = "1.3.0"
+horologist = "0.7.15"
+watchfaceComplications = "1.3.0"
+kotlinxCoroutinesGuava = "1.10.2"
+desugarJdkLibs = "2.1.5"
 
 [libraries]
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycleRuntimeCompose" }
@@ -33,19 +42,34 @@ coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coilCompose"
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "kotlinxCoroutinesPlayServices" }
 play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
-ui = { group = "androidx.compose.ui", name = "ui" }
-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+ui = { group = "androidx.compose.ui", name = "ui", version.ref = "compose" }
+ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics", version.ref = "compose" }
+ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling", version.ref = "compose" }
+ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview", version.ref = "compose" }
+ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest", version.ref = "compose" }
+ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4", version.ref = "compose" }
 wear-tooling-preview = { group = "androidx.wear", name = "wear-tooling-preview", version.ref = "wearToolingPreview" }
 activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
 tiles-tooling = { group = "androidx.wear.tiles", name = "tiles-tooling", version.ref = "tilesTooling" }
+wear-compose-foundation = { group = "androidx.wear.compose", name = "compose-foundation", version.ref = "wearComposeFoundation" }
+wear-compose-material3 = { group = "androidx.wear.compose", name = "compose-material3", version.ref = "wearComposeMaterial3" }
+wear-tiles = { group = "androidx.wear.tiles", name = "tiles", version.ref = "wearTiles" }
+wear-tiles-renderer = { group = "androidx.wear.tiles", name = "tiles-renderer", version.ref = "wearTiles" }
+wear-protolayout = { group = "androidx.wear.protolayout", name = "protolayout", version.ref = "wearProtolayout" }
+wear-protolayout-material = { group = "androidx.wear.protolayout", name = "protolayout-material", version.ref = "wearProtolayout" }
+wear-protolayout-expression = { group = "androidx.wear.protolayout", name = "protolayout-expression", version.ref = "wearProtolayout" }
+horologist-compose-tools = { group = "com.google.android.horologist", name = "horologist-compose-tools", version.ref = "horologist" }
+horologist-tiles = { group = "com.google.android.horologist", name = "horologist-tiles", version.ref = "horologist" }
+horologist-media-ui = { group = "com.google.android.horologist", name = "horologist-media-ui", version.ref = "horologist" }
+horologist-media = { group = "com.google.android.horologist", name = "horologist-media", version.ref = "horologist" }
+horologist-compose-layout = { group = "com.google.android.horologist", name = "horologist-compose-layout", version.ref = "horologist" }
+wear-watchface-complications-datasource-ktx = { group = "androidx.wear.watchface", name = "watchface-complications-data-source-ktx", version.ref = "watchfaceComplications" }
+kotlinx-coroutines-guava = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-guava", version.ref = "kotlinxCoroutinesGuava" }
+desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-
