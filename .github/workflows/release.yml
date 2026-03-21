@@ -48,9 +48,23 @@ jobs:
             echo "unsigned_exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Check signing secrets availability
+        id: signing_ready
+        env:
+          KEY_B64: ${{ secrets.ANDROID_SIGNING_KEY_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_ALIAS }}
+          STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEY_B64" ] && [ -n "$KEY_ALIAS" ] && [ -n "$STORE_PASS" ] && [ -n "$KEY_PASS" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Sign release APK (optional)
         id: sign_release
-        if: steps.detect.outputs.unsigned_exists == 'true' && secrets.ANDROID_SIGNING_KEY_BASE64 != '' && secrets.ANDROID_ALIAS != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_PASSWORD != ''
+        if: steps.detect.outputs.unsigned_exists == 'true' && steps.signing_ready.outputs.enabled == 'true'
         uses: r0adkll/sign-android-release@v1
         with:
           releaseDirectory: app/build/outputs/apk/release
