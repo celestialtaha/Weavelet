@@ -36,7 +36,7 @@ import androidx.wear.compose.material3.Text
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.wapp.wearmusic.R
-import com.wapp.wearmusic.data.model.Track
+import com.wapp.wearmusic.core.data.model.Track
 import com.wapp.wearmusic.presentation.viewmodel.MusicPlayerUiState
 import com.wapp.wearmusic.presentation.viewmodel.MusicPlayerViewModel
 import com.wapp.wearmusic.presentation.viewmodel.PaginationState
@@ -52,9 +52,6 @@ fun LibraryScreen(
     settingsViewModel: SettingsViewModel,
     onTrackClick: (Int) -> Unit,
 ) {
-    LaunchedEffect(Unit) {
-        viewModel.loadTracks()
-    }
     // 1) Observe ViewModel state
     val tracks by viewModel.tracks.collectAsState(initial = emptyList())
     val playbackState by viewModel.playbackState.collectAsState()
@@ -70,6 +67,10 @@ fun LibraryScreen(
     // 2) Observe settings (for showAlbumArt)
     val settings by settingsViewModel.settings.collectAsState()
     val showArt = settings.showAlbumArt
+
+    LaunchedEffect(settings.sortBy) {
+        viewModel.loadTracks()
+    }
 
     // 3) Search query
     var query by rememberSaveable { mutableStateOf("") }

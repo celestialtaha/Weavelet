@@ -15,6 +15,7 @@ import com.wapp.wearmusic.core.data.model.CachedTrackMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -33,6 +34,10 @@ class MusicRepository(private val context: Context) {
         private const val CACHE_SIZE = 100 // Number of cached items
         private const val CACHE_EXPIRY_MS = 30 * 60 * 1000L // 30 minutes
         private const val ALBUM_ART_CACHE_SIZE = 20 * 1024 * 1024 // 20MB for album art
+        private const val SORT_TITLE = "title"
+        private const val SORT_ARTIST = "artist"
+        private const val SORT_ALBUM = "album"
+        private const val SORT_DATE_ADDED = "dateAdded"
     }
 
     // Metadata cache
@@ -55,11 +60,12 @@ class MusicRepository(private val context: Context) {
      */
     fun getTracksPageTimeoutWrapper(
         offset: Int = 0,
-        limit: Int = PAGE_SIZE
+        limit: Int = PAGE_SIZE,
+        sortBy: String = SORT_TITLE
     ): Flow<TrackPage> = flow {
         try {
             withTimeout(LOAD_TIMEOUT) {
-                emitAll(getTracksPage(offset, limit))
+                emitAll(getTracksPage(offset, limit, sortBy))
             }
         } catch (e: TimeoutCancellationException) {
             Log.e("MusicRepository", "Track loading timed out", e)
@@ -67,9 +73,14 @@ class MusicRepository(private val context: Context) {
         }
     }
 
-    fun getTracksPage(offset: Int = 0, limit: Int = PAGE_SIZE): Flow<TrackPage> = flow {
+    fun getTracksPage(
+        offset: Int = 0,
+        limit: Int = PAGE_SIZE,
+        sortBy: String = SORT_TITLE
+    ): Flow<TrackPage> = flow {
         val tracks = mutableListOf<Track>()
         val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        val sortConfig = getSortConfig(sortBy)
 
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
@@ -81,14 +92,14 @@ class MusicRepository(private val context: Context) {
         )
 
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
-        val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
+        val sortOrder = sortConfig.legacySortOrder
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val queryArgs = android.os.Bundle().apply {
                 putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
                 putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, null)
-                putString(android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS, MediaStore.Audio.Media.TITLE)
-                putInt(android.content.ContentResolver.QUERY_ARG_SORT_DIRECTION, android.content.ContentResolver.QUERY_SORT_DIRECTION_ASCENDING)
+                putString(android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS, sortConfig.sortColumn)
+                putInt(android.content.ContentResolver.QUERY_ARG_SORT_DIRECTION, sortConfig.sortDirection)
                 putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, limit)
                 putInt(android.content.ContentResolver.QUERY_ARG_OFFSET, offset)
             }
@@ -115,6 +126,37 @@ class MusicRepository(private val context: Context) {
 
         emit(TrackPage(tracks, offset, hasMore, totalCount))
     }.flowOn(Dispatchers.IO)
+
+    private data class SortConfig(
+        val sortColumn: String,
+        val sortDirection: Int,
+        val legacySortOrder: String
+    )
+
+    private fun getSortConfig(sortBy: String): SortConfig {
+        return when (sortBy) {
+            SORT_ARTIST -> SortConfig(
+                sortColumn = MediaStore.Audio.Media.ARTIST,
+                sortDirection = android.content.ContentResolver.QUERY_SORT_DIRECTION_ASCENDING,
+                legacySortOrder = "${MediaStore.Audio.Media.ARTIST} ASC, ${MediaStore.Audio.Media.TITLE} ASC"
+            )
+            SORT_ALBUM -> SortConfig(
+                sortColumn = MediaStore.Audio.Media.ALBUM,
+                sortDirection = android.content.ContentResolver.QUERY_SORT_DIRECTION_ASCENDING,
+                legacySortOrder = "${MediaStore.Audio.Media.ALBUM} ASC, ${MediaStore.Audio.Media.TITLE} ASC"
+            )
+            SORT_DATE_ADDED -> SortConfig(
+                sortColumn = MediaStore.Audio.Media.DATE_ADDED,
+                sortDirection = android.content.ContentResolver.QUERY_SORT_DIRECTION_DESCENDING,
+                legacySortOrder = "${MediaStore.Audio.Media.DATE_ADDED} DESC"
+            )
+            else -> SortConfig(
+                sortColumn = MediaStore.Audio.Media.TITLE,
+                sortDirection = android.content.ContentResolver.QUERY_SORT_DIRECTION_ASCENDING,
+                legacySortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
+            )
+        }
+    }
 
     private fun processCursor(cursor: android.database.Cursor, tracks: MutableList<Track>) {
         while (cursor.moveToNext()) {
@@ -199,6 +241,15 @@ class MusicRepository(private val context: Context) {
         metadataCache.evictAll()
         albumArtCache.evictAll()
         cachedTrackCount = null
+    }
+
+    suspend fun refreshLibraryInBackground() = withContext(Dispatchers.IO) {
+        clearCache()
+            getTracksPage(0, PAGE_SIZE).collect { page ->
+                page.tracks.take(10).forEach { track ->
+                    loadAlbumArt(track)
+                }
+        }
     }
 
     fun getTrackById(trackId: String): Flow<Track?> = flow {

@@ -11,10 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.material3.TimeText
 import com.wapp.wearmusic.R
 import com.wapp.wearmusic.complication.MusicComplicationProvider
@@ -94,14 +92,6 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun WearMusicApp() {
-    val viewModel: MusicPlayerViewModel = viewModel()
-    val settingsViewModel: SettingsViewModel = viewModel()
-
-    // Initialize app after ViewModel is ready
-    LaunchedEffect(Unit) {
-        viewModel.loadTracks()
-    }
-
     WearMusicTheme {
         TimeText()
         MusicPlayerApp()
