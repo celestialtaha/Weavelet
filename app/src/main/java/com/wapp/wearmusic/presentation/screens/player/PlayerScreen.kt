@@ -1,9 +1,5 @@
 /*
  * PlayerScreen.kt  –  Wear OS Music Player
- * Tested with:
- *   androidx.wear.compose:compose-material:1.5.0-beta03
- *   androidx.compose.ui:ui:1.8.0
- *   androidx.lifecycle:lifecycle-runtime-compose:2.8.0
  */
 package com.wapp.wearmusic.presentation.screens.player
 
@@ -31,12 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.rotary.onPreRotaryScrollEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -55,6 +49,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.wear.compose.material3.CircularProgressIndicator
+import androidx.wear.compose.material3.CircularProgressIndicatorDefaults
 import androidx.wear.compose.material3.FilledTonalIconButton
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.IconButton
@@ -85,7 +80,8 @@ fun PlayerScreen(
     settingsViewModel: SettingsViewModel
 ) {
     /* 1 ─── Collect state (lifecycle-aware) */
-    val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
+    val playbackStateState = viewModel.playbackState.collectAsStateWithLifecycle()
+    val playbackState = playbackStateState.value
     val track = playbackState.currentTrack
     val playing = playbackState.isPlaying
     val posMs = playbackState.position
@@ -100,7 +96,6 @@ fun PlayerScreen(
             viewModel.setProgressTrackingEnabled(false)
         }
     }
-
 
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val showArt = settings.showAlbumArt
@@ -121,12 +116,6 @@ fun PlayerScreen(
         durMs <= 0L -> null
         timeMode == TimeMode.ELAPSED -> formatTime(posMs)
         else -> "-${formatTime(remainingMs)}"
-    }
-
-    val progress by remember(posMs, durMs) {
-        derivedStateOf {
-            if (durMs > 0) posMs / durMs.toFloat() else 0f
-        }
     }
 
     /* 3 ─── Rotary plumbing */
@@ -208,10 +197,19 @@ fun PlayerScreen(
                 )
                 return@Box
             }
+            val currentTrack = track
 
             PlayerBackdrop(
-                track = track!!,
-                progress = progress,
+                track = currentTrack,
+                progressProvider = {
+                    val state = playbackStateState.value
+                    val duration = state.duration
+                    if (duration > 0L) {
+                        (state.position / duration.toFloat()).coerceIn(0f, 1f)
+                    } else {
+                        0f
+                    }
+                },
                 showAlbumArt = showArt,
                 compact = isCompact
             )
@@ -254,7 +252,7 @@ fun PlayerScreen(
                     compact = isCompact
                 )
                 Spacer(Modifier.height(sectionSpacing))
-                TrackInfo(track = track!!, compact = isCompact)
+                TrackInfo(track = currentTrack, compact = isCompact)
                 Spacer(Modifier.height(sectionSpacing))
                 TransportControls(
                     playing  = playing,
@@ -357,14 +355,21 @@ private fun VolumeSideHud(
 @Composable
 private fun PlayerBackdrop(
     track: Track,
-    progress: Float,
+    progressProvider: () -> Float,
     showAlbumArt: Boolean,
     compact: Boolean
 ) {
     val ctx = LocalContext.current
-    val edgePadding = if (compact) 2.dp else 4.dp
-    val strokeWidth = if (compact) 4.dp else 5.dp
+    val edgePadding = CircularProgressIndicatorDefaults.FullScreenPadding
+    val strokeWidth = if (compact) {
+        CircularProgressIndicatorDefaults.smallStrokeWidth
+    } else {
+        CircularProgressIndicatorDefaults.largeStrokeWidth
+    }
     val hasArt = showAlbumArt && track.albumArtUri != null
+    val indicatorColor = MaterialTheme.colorScheme.primary
+    val trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (hasArt) 0.88f else 0.74f)
+    val overlayBase = MaterialTheme.colorScheme.background
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -390,21 +395,22 @@ private fun PlayerBackdrop(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color.Black.copy(alpha = if (hasArt) 0.50f else 0.30f),
-                            Color.Black.copy(alpha = if (hasArt) 0.72f else 0.56f)
+                            overlayBase.copy(alpha = if (hasArt) 0.50f else 0.30f),
+                            overlayBase.copy(alpha = if (hasArt) 0.72f else 0.56f)
                         )
                     )
                 )
         )
 
         CircularProgressIndicator(
-            progress = {progress},
+            progress = progressProvider,
             strokeWidth = strokeWidth,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(edgePadding),
             colors = ProgressIndicatorDefaults.colors(
-                indicatorColor = MaterialTheme.colorScheme.primary
+                indicatorColor = indicatorColor,
+                trackColor = trackColor
             )
         )
     }
@@ -569,26 +575,6 @@ private fun TransportControls(
         }
     }
 }
-
-//@Composable
-//private fun ControlIcon(
-//    vector: ImageVector,
-//    desc: String,
-//    onClick: () -> Unit
-//) {
-//    Icon(
-//        imageVector = vector,
-//        contentDescription = desc,
-//        modifier = Modifier
-//            .size(32.dp)
-//            .clickable(onClick = onClick)
-//            .background(
-//                MaterialTheme.colors.surface.copy(alpha = 0.3f),
-//                CircleShape
-//            )
-//            .padding(6.dp)
-//    )
-//}
 
 /* -------------------------------------------------------------------------- */
 /*                                  UTILS                                     */
