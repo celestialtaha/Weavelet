@@ -12,6 +12,7 @@ import android.media.AudioManager
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -32,6 +33,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.rotary.onPreRotaryScrollEvent
@@ -48,6 +52,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.wear.compose.material3.CircularProgressIndicator
 import androidx.wear.compose.material3.FilledTonalIconButton
 import androidx.wear.compose.material3.Icon
@@ -65,6 +72,7 @@ import com.wapp.wearmusic.core.data.model.Track
 import com.wapp.wearmusic.presentation.viewmodel.MusicPlayerViewModel
 import com.wapp.wearmusic.presentation.viewmodel.SettingsViewModel
 import kotlin.math.min
+import kotlinx.coroutines.delay
 
 /* -------------------------------------------------------------------------- */
 /*                                SCREEN BODY                                 */
@@ -126,10 +134,26 @@ fun PlayerScreen(
     val ctx       = LocalContext.current
     val audio     = remember { ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val focusReq  = remember { FocusRequester() }
+    val volumeAdjustFlags = AudioManager.FLAG_REMOVE_SOUND_AND_VIBRATE
+    val maxVolume = remember(audio) {
+        audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+    }
+    var currentVolume by remember {
+        mutableIntStateOf(audio.getStreamVolume(AudioManager.STREAM_MUSIC))
+    }
+    var volumeHudVisible by remember { mutableStateOf(false) }
+    var volumeHudTick by remember { mutableIntStateOf(0) }
 
     /* Accumulator for smoother, one-step-per-detent behaviour */
     var accumPx by remember { mutableFloatStateOf(0f) }
-    val PIXELS_PER_STEP = 48f         // tweak if your hardware feels different
+    val PIXELS_PER_STEP = 24f         // OnePlus crown sends relatively small deltas.
+
+    LaunchedEffect(volumeHudTick) {
+        if (volumeHudVisible) {
+            delay(900)
+            volumeHudVisible = false
+        }
+    }
 
     val screenScrollState = rememberScrollState()
     ScreenScaffold(
@@ -142,29 +166,35 @@ fun PlayerScreen(
                 .focusRequester(focusReq)
                 .onPreRotaryScrollEvent { ev ->
                     accumPx += ev.verticalScrollPixels     // +ve = clockwise on most watches
-                    var handled = false
+                    var changed = false
                     while (accumPx >= PIXELS_PER_STEP) {
                         audio.adjustStreamVolume(
                             AudioManager.STREAM_MUSIC,
                             AudioManager.ADJUST_RAISE,
-                            /* no FLAG_SHOW_UI – avoids overlay stealing focus */ 0
+                            volumeAdjustFlags
                         )
+                        currentVolume = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+                        volumeHudVisible = true
+                        volumeHudTick++
                         accumPx -= PIXELS_PER_STEP
-                        handled = true
+                        changed = true
                     }
                     while (accumPx <= -PIXELS_PER_STEP) {
                         audio.adjustStreamVolume(
                             AudioManager.STREAM_MUSIC,
                             AudioManager.ADJUST_LOWER,
-                            0
+                            volumeAdjustFlags
                         )
+                        currentVolume = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+                        volumeHudVisible = true
+                        volumeHudTick++
                         accumPx += PIXELS_PER_STEP
-                        handled = true
+                        changed = true
                     }
-                    if (handled) Log.d("PlayerScreen", "Volume step, accum=$accumPx")
-                    handled        // consume only if we actually changed volume
+                    if (changed) Log.d("PlayerScreen", "Volume step, accum=$accumPx")
+                    true
                 }
-                .focusTarget()                     // .focusable() if <1.8
+                .focusable()
                 .padding(screenPadding),
             contentAlignment = Alignment.Center
         ) {
@@ -186,6 +216,16 @@ fun PlayerScreen(
                 showAlbumArt = showArt,
                 compact = isCompact
             )
+            if (volumeHudVisible) {
+                VolumeSideHud(
+                    volume = currentVolume,
+                    maxVolume = maxVolume,
+                    compact = isCompact,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = if (isCompact) 1.dp else 2.dp)
+                )
+            }
 
             /* ----- Main column ----- */
             Column(
@@ -234,6 +274,77 @@ fun PlayerScreen(
                     hapticEnabled = hapticEnabled,
                     buttonSize = modeButtonSize,
                     iconSize = modeIconSize
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VolumeSideHud(
+    volume: Int,
+    maxVolume: Int,
+    compact: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val targetProgress = (volume.toFloat() / maxVolume.toFloat()).coerceIn(0f, 1f)
+    val progress by animateFloatAsState(
+        targetValue = targetProgress,
+        animationSpec = tween(durationMillis = 120),
+        label = "volume_side_hud_progress"
+    )
+    val arcHeight = if (compact) 78.dp else 90.dp
+    val arcWidth = if (compact) 16.dp else 18.dp
+    val strokeWidth = if (compact) 5.dp else 6.dp
+    val maxSweep = 84f // ~40% straighter than the previous 140-degree arc.
+    val progressSweep = progress * maxSweep
+    val progressStart = 42f - progressSweep
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.72f)
+    val indicatorColor = MaterialTheme.colorScheme.primary
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 3.dp)
+    ) {
+        Text(
+            text = "$volume",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.86f))
+                .padding(horizontal = if (compact) 4.dp else 5.dp, vertical = 2.dp)
+        )
+        Canvas(
+            modifier = Modifier
+                .width(arcWidth)
+                .height(arcHeight)
+        ) {
+            val strokePx = strokeWidth.toPx()
+            val diameter = size.height * 2.8f
+            val topLeft = Offset(
+                x = size.width - diameter - (strokePx / 2f),
+                y = (size.height - diameter) / 2f
+            )
+
+            drawArc(
+                color = trackColor,
+                startAngle = -42f,
+                sweepAngle = maxSweep,
+                useCenter = false,
+                topLeft = topLeft,
+                size = androidx.compose.ui.geometry.Size(diameter, diameter),
+                style = Stroke(width = strokePx, cap = StrokeCap.Round)
+            )
+            if (progressSweep > 0.5f) {
+                drawArc(
+                    color = indicatorColor,
+                    startAngle = progressStart,
+                    sweepAngle = progressSweep,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = androidx.compose.ui.geometry.Size(diameter, diameter),
+                    style = Stroke(width = strokePx, cap = StrokeCap.Round)
                 )
             }
         }
