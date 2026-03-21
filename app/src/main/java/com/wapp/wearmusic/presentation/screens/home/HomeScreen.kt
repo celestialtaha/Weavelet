@@ -38,7 +38,7 @@ fun HomeScreen(
             contentPadding = it,
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             // App Title
             item {
@@ -46,7 +46,7 @@ fun HomeScreen(
                     text = stringResource(R.string.app_name),
                     style = MaterialTheme.typography.titleLarge,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 24.dp, bottom = 16.dp)
+                    modifier = Modifier.padding(top = 20.dp, bottom = 12.dp)
                 )
             }
             
@@ -56,7 +56,7 @@ fun HomeScreen(
                     onClick = onLibraryClick,
                     modifier = Modifier
                         .fillMaxWidth(0.8f)
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 1.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.secondary
@@ -72,7 +72,7 @@ fun HomeScreen(
                     onClick = onSettingsClick,
                     modifier = Modifier
                         .fillMaxWidth(0.8f)
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 1.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.secondary
@@ -88,7 +88,7 @@ fun HomeScreen(
                     onClick = onAboutClick,
                     modifier = Modifier
                         .fillMaxWidth(0.8f)
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 1.dp),
                 ) {
                     Text(stringResource(R.string.about))
                 }

@@ -48,7 +48,8 @@
     <!-- About Screen -->
     <string name="about">About</string>
     <string name="about_description">A Wear OS music player that lets you listen to music stored on your watch.</string>
-    <string name="version_info">Version 1.0</string>
+    <string name="version_info_format">Version %1$s (%2$s)</string>
+    <string name="about_footer">Made for your watch listening sessions.</string>
     
     <!-- Tile: primary chip text -->
     <string name="open_player">Open Music Player</string>
