@@ -49,11 +49,10 @@ import androidx.wear.compose.material3.Text
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.wapp.wearmusic.R
-import com.wapp.wearmusic.data.model.RepeatMode
-import com.wapp.wearmusic.data.model.Track
+import com.wapp.wearmusic.core.data.model.RepeatMode
+import com.wapp.wearmusic.core.data.model.Track
 import com.wapp.wearmusic.presentation.viewmodel.MusicPlayerViewModel
 import com.wapp.wearmusic.presentation.viewmodel.SettingsViewModel
-import kotlinx.coroutines.flow.map
 
 /* -------------------------------------------------------------------------- */
 /*                                SCREEN BODY                                 */
@@ -75,9 +74,8 @@ fun PlayerScreen(
     val hapticEnabled by viewModel.hapticEnabled.collectAsStateWithLifecycle()
 
 
-    val showArt by settingsViewModel.settings
-        .map { it.showAlbumArt }                    // take only the Boolean field
-        .collectAsStateWithLifecycle(initialValue = true)
+    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
+    val showArt = settings.showAlbumArt
 
     val progress by remember(posMs, durMs) {
         derivedStateOf {

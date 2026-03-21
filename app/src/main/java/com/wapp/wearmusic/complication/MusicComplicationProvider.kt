@@ -3,6 +3,7 @@ package com.wapp.wearmusic.complication
 import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.drawable.Icon
+import android.content.Context
 import androidx.wear.watchface.complications.data.ComplicationData
 import androidx.wear.watchface.complications.data.ComplicationType
 import androidx.wear.watchface.complications.data.MonochromaticImage
@@ -13,7 +14,6 @@ import androidx.wear.watchface.complications.datasource.SuspendingComplicationDa
 import com.wapp.wearmusic.R
 import com.wapp.wearmusic.presentation.MainActivity
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
@@ -27,11 +27,14 @@ class MusicComplicationProvider : SuspendingComplicationDataSourceService() {
         val currentTrackTitle = MutableStateFlow<String?>(null)
         val isPlaying = MutableStateFlow(false)
         val enabled = MutableStateFlow(true) // Default to enabled
+
+        private const val PREFS_NAME = "music_player_settings"
+        private const val KEY_ENABLE_COMPLICATION = "enable_complication"
     }
 
     override suspend fun onComplicationRequest(request: ComplicationRequest): ComplicationData? {
         // Check if complication is enabled by user settings
-        if (!enabled.first()) {
+        if (!isComplicationEnabled()) {
             // Return default/empty complication data when disabled
             return when (request.complicationType) {
                 ComplicationType.SHORT_TEXT -> createDefaultComplicationData()
@@ -58,9 +61,9 @@ class MusicComplicationProvider : SuspendingComplicationDataSourceService() {
             )
             .build()
     }
-
+    
     private suspend fun createShortTextComplicationData(request: ComplicationRequest): ComplicationData {
-        val title = currentTrackTitle.map { it ?: getString(R.string.app_name) }.first()
+        val title = currentTrackTitle.first() ?: getString(R.string.app_name)
         val icon = if (isPlaying.first()) {
             R.drawable.ic_notification // Use the music note icon
         } else {
@@ -86,6 +89,13 @@ class MusicComplicationProvider : SuspendingComplicationDataSourceService() {
             )
             .setTapAction(pendingIntent)
             .build()
+    }
+
+    private fun isComplicationEnabled(): Boolean {
+        val stored = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_ENABLE_COMPLICATION, true)
+        enabled.value = stored
+        return stored
     }
 
     override fun getPreviewData(type: ComplicationType): ComplicationData? {

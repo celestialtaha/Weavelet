@@ -1,12 +1,15 @@
 package com.wapp.wearmusic.presentation.viewmodel
 
 import android.app.Application
+import android.content.ComponentName
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.wapp.wearmusic.data.model.Settings
-import com.wapp.wearmusic.data.model.RepeatMode
+import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
+import com.wapp.wearmusic.complication.MusicComplicationProvider
+import com.wapp.wearmusic.core.data.model.Settings
+import com.wapp.wearmusic.core.data.model.RepeatMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -129,11 +132,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      * Enable or disable complication updates
      */
     private fun updateComplicationState(enabled: Boolean) {
-        // Update the complication provider's enabled state
         try {
-            // Update the static enabled state in the complication provider
-            com.wapp.wearmusic.complication.MusicComplicationProvider.enabled.value = enabled
-            
+            MusicComplicationProvider.enabled.value = enabled
+            ComplicationDataSourceUpdateRequester
+                .create(
+                    getApplication(),
+                    ComponentName(getApplication(), MusicComplicationProvider::class.java)
+                )
+                .requestUpdateAll()
+
             Log.d("SettingsViewModel", "Complication state updated: $enabled")
         } catch (e: Exception) {
             Log.e("SettingsViewModel", "Failed to update complication state", e)
