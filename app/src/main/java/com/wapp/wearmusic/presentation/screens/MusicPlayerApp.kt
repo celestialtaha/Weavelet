@@ -34,24 +34,13 @@ fun MusicPlayerApp() {
     val viewModel: MusicPlayerViewModel = viewModel()
     val settingsViewModel: SettingsViewModel = viewModel()
 
-    // Collect UI state safely
-    val uiState by viewModel.uiState.collectAsState()
-    val playbackState by viewModel.playbackState.collectAsState()
-    val currentTrack = playbackState.currentTrack
-
     // Single source of truth for navigation
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
     val swipeState = rememberSwipeToDismissBoxState()
 
-    // Track if we've triggered initial load
-    var initialLoadTriggered by remember { mutableStateOf(false) }
-
-    // Trigger initial track load
+    // Trigger initial track load once.
     LaunchedEffect(Unit) {
-        if (!initialLoadTriggered) {
-            viewModel.loadTracks()
-            initialLoadTriggered = true
-        }
+        viewModel.loadTracks()
     }
 
     // Handle swipe dismissals

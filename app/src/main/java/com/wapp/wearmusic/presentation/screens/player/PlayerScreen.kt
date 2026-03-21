@@ -73,6 +73,13 @@ fun PlayerScreen(
     val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
     val hapticEnabled by viewModel.hapticEnabled.collectAsStateWithLifecycle()
 
+    DisposableEffect(viewModel) {
+        viewModel.setProgressTrackingEnabled(true)
+        onDispose {
+            viewModel.setProgressTrackingEnabled(false)
+        }
+    }
+
 
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val showArt = settings.showAlbumArt

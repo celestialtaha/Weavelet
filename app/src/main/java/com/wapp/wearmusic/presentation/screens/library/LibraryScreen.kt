@@ -26,6 +26,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.itemsIndexed
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
@@ -53,19 +54,18 @@ fun LibraryScreen(
     onTrackClick: (Int) -> Unit,
 ) {
     // 1) Observe ViewModel state
-    val tracks by viewModel.tracks.collectAsState(initial = emptyList())
-    val playbackState by viewModel.playbackState.collectAsState()
-    val currentTrack = playbackState.currentTrack
+    val tracks by viewModel.tracks.collectAsStateWithLifecycle(initialValue = emptyList())
+    val currentTrackId by viewModel.currentTrackId.collectAsStateWithLifecycle(initialValue = null)
     // val position = playbackState.position TODO: use this
-    val uiState by viewModel.uiState.collectAsState()
-    val paginationState by viewModel.paginationState.collectAsState()
-    val hasMoreTracks by viewModel.hasMoreTracks.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val paginationState by viewModel.paginationState.collectAsStateWithLifecycle()
+    val hasMoreTracks by viewModel.hasMoreTracks.collectAsStateWithLifecycle()
 
     val listState = rememberScalingLazyListState()
     val layoutInfo by remember { derivedStateOf { listState.layoutInfo } }
 
     // 2) Observe settings (for showAlbumArt)
-    val settings by settingsViewModel.settings.collectAsState()
+    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val showArt = settings.showAlbumArt
 
     LaunchedEffect(settings.sortBy) {
@@ -153,7 +153,7 @@ fun LibraryScreen(
                             TrackItem(
                                 track = track,
                                 showAlbumArt = showArt,
-                                isPlaying = track.id == currentTrack?.id, // ID comparison
+                                isPlaying = track.id == currentTrackId,
                                 onClick = {
                                     val index = tracks.indexOfFirst { it.id == track.id }
                                     if (index >= 0) onTrackClick(index)

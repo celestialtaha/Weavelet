@@ -108,16 +108,9 @@ class MusicRepository(private val context: Context) {
                 processCursor(cursor, tracks)
             }
         } else {
-            context.contentResolver.query(collection, projection, selection, null, sortOrder)?.use { cursor ->
-                if (cursor.moveToPosition(offset)) {
-                    var tracksAddedCount = 0
-                    do {
-                        if (tracksAddedCount >= limit) break
-                        if (processCursorRow(cursor, tracks)) {
-                            tracksAddedCount++
-                        }
-                    } while (cursor.moveToNext())
-                }
+            val pagedSortOrder = "$sortOrder LIMIT $limit OFFSET $offset"
+            context.contentResolver.query(collection, projection, selection, null, pagedSortOrder)?.use { cursor ->
+                processCursor(cursor, tracks)
             }
         }
 
@@ -204,17 +197,50 @@ class MusicRepository(private val context: Context) {
         albumArtCache.get(track.albumId)?.let { return@withContext it }
         try {
             track.albumArtUri?.let { uri ->
+                val options = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+                context.contentResolver.openInputStream(uri)?.use { boundsStream ->
+                    BitmapFactory.decodeStream(boundsStream, null, options)
+                }
+
+                val decodeOptions = BitmapFactory.Options().apply {
+                    inSampleSize = calculateInSampleSize(options, 128, 128)
+                    inPreferredConfig = Bitmap.Config.RGB_565
+                }
+
                 context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    val bitmap = BitmapFactory.decodeStream(inputStream)
+                    val bitmap = BitmapFactory.decodeStream(inputStream, null, decodeOptions)
                     bitmap?.let {
                         val scaledBitmap = Bitmap.createScaledBitmap(it, 128, 128, true)
                         albumArtCache.put(track.albumId, scaledBitmap)
+                        if (scaledBitmap != it) {
+                            it.recycle()
+                        }
                         return@withContext scaledBitmap
                     }
                 }
             }
         } catch (e: IOException) {}
         null
+    }
+
+    private fun calculateInSampleSize(
+        options: BitmapFactory.Options,
+        reqWidth: Int,
+        reqHeight: Int
+    ): Int {
+        val height = options.outHeight
+        val width = options.outWidth
+        var inSampleSize = 1
+        if (height > reqHeight || width > reqWidth) {
+            val halfHeight = height / 2
+            val halfWidth = width / 2
+            while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize.coerceAtLeast(1)
     }
 
     private fun getTotalTrackCount(): Int {

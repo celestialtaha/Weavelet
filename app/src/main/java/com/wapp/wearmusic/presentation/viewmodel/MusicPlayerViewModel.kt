@@ -88,9 +88,13 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     val paginationState: StateFlow<PaginationState> = _paginationState.asStateFlow()
     val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
     val hasMoreTracks: StateFlow<Boolean> = _hasMoreTracks.asStateFlow()
+    val currentTrackId: StateFlow<String?> = _playbackState
+        .map { it.currentTrack?.id }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val hapticEnabled = MutableStateFlow(sharedPreferences.getBoolean("haptic_feedback", true))
 
     private val mediaItemCache = mutableMapOf<String, MediaItem>()
+    private var progressTrackingEnabled = false
 
     override fun onCleared() {
         progressUpdateJob?.cancel()
@@ -217,6 +221,15 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun setProgressTrackingEnabled(enabled: Boolean) {
+        progressTrackingEnabled = enabled
+        if (enabled && _playbackState.value.isPlaying) {
+            startProgressUpdates()
+        } else if (!enabled) {
+            progressUpdateJob?.cancel()
+        }
+    }
+
     private fun Track.toCachedMediaItem(): MediaItem {
         return mediaItemCache.getOrPut(id) {
             MediaItem.Builder()
@@ -246,7 +259,11 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
             if (metaDur > 0) _playbackState.value = _playbackState.value.copy(duration = metaDur, position = 0L)
         }
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            if (isPlaying) startProgressUpdates() else progressUpdateJob?.cancel()
+            if (isPlaying && progressTrackingEnabled) {
+                startProgressUpdates()
+            } else {
+                progressUpdateJob?.cancel()
+            }
             _playbackState.value = _playbackState.value.copy(isPlaying = isPlaying)
             MusicComplicationProvider.isPlaying.value = isPlaying
             requestComplicationUpdate()
@@ -260,7 +277,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     private fun startProgressUpdates() {
         progressUpdateJob?.cancel()
         progressUpdateJob = viewModelScope.launch {
-            while (true) {
+            while (isActive) {
                 delay(500)
                 controller?.let { c -> _playbackState.update { it.copy(position = c.currentPosition) } }
             }
