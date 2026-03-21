@@ -33,6 +33,7 @@ import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material3.CircularProgressIndicator
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -107,86 +108,90 @@ fun LibraryScreen(
         }
     }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .safeDrawingPadding()
+    ScreenScaffold(
+        scrollState = listState
     ) {
-        // 6) Show loading/empty/error if needed
-        when (uiState) {
-            is MusicPlayerUiState.Loading -> LoadingScreen()
-            is MusicPlayerUiState.Empty -> EmptyLibraryScreen()
-            is MusicPlayerUiState.Error -> ErrorScreen((uiState as MusicPlayerUiState.Error).message)
-            MusicPlayerUiState.Success -> {
-                // 7) Main track list
-                ScalingLazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // (a) Search box
-                    item {
-                        SearchBox(query = query, onQueryChange = { query = it })
-                        Spacer(Modifier.height(8.dp))
-                    }
-
-                    // (b) If no results
-                    if (results.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(it)
+        ) {
+            // 6) Show loading/empty/error if needed
+            when (uiState) {
+                is MusicPlayerUiState.Loading -> LoadingScreen()
+                is MusicPlayerUiState.Empty -> EmptyLibraryScreen()
+                is MusicPlayerUiState.Error -> ErrorScreen((uiState as MusicPlayerUiState.Error).message)
+                MusicPlayerUiState.Success -> {
+                    // 7) Main track list
+                    ScalingLazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // (a) Search box
                         item {
-                            Text(
-                                if (query.isNotEmpty()) stringResource(R.string.no_music_found)
-                                else stringResource(R.string.empty_library),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = .6f),
-                                modifier = Modifier
-                                    .padding(top = 16.dp)
-                                    .fillMaxWidth(),
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    } else {
-                        // (c) Each track row
-                        itemsIndexed(
-                            items = results,
-                            key = { _, track -> track.id }
-                        ) { _, track ->
-                            TrackItem(
-                                track = track,
-                                showAlbumArt = showArt,
-                                isPlaying = track.id == currentTrackId,
-                                onClick = {
-                                    val index = tracks.indexOfFirst { it.id == track.id }
-                                    if (index >= 0) onTrackClick(index)
-                                }
-                            )
+                            SearchBox(query = query, onQueryChange = { query = it })
+                            Spacer(Modifier.height(8.dp))
                         }
 
-                        // (d) Pagination loading indicator
-                        if (paginationState is PaginationState.LoadingMore) {
+                        // (b) If no results
+                        if (results.isEmpty()) {
                             item {
-                                CircularProgressIndicator(
+                                Text(
+                                    if (query.isNotEmpty()) stringResource(R.string.no_music_found)
+                                    else stringResource(R.string.empty_library),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = .6f),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(16.dp)
+                                        .padding(top = 16.dp),
+                                    textAlign = TextAlign.Center
                                 )
                             }
-                        }
+                        } else {
+                            // (c) Each track row
+                            itemsIndexed(
+                                items = results,
+                                key = { _, track -> track.id }
+                            ) { _, track ->
+                                TrackItem(
+                                    track = track,
+                                    showAlbumArt = showArt,
+                                    isPlaying = track.id == currentTrackId,
+                                    onClick = {
+                                        val index = tracks.indexOfFirst { it.id == track.id }
+                                        if (index >= 0) onTrackClick(index)
+                                    }
+                                )
+                            }
 
-                        item { Spacer(Modifier.height(32.dp)) }
+                            // (d) Pagination loading indicator
+                            if (paginationState is PaginationState.LoadingMore) {
+                                item {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp)
+                                    )
+                                }
+                            }
+
+                            item { Spacer(Modifier.height(32.dp)) }
+                        }
                     }
                 }
             }
-        }
 
-        // 8) Show initial loading indicator during first load
-        if (paginationState is PaginationState.LoadingFirst) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
+            // 8) Show initial loading indicator during first load
+            if (paginationState is PaginationState.LoadingFirst) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
             }
         }
     }

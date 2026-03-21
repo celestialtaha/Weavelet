@@ -1,11 +1,9 @@
 package com.wapp.wearmusic.presentation.screens.home
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -13,8 +11,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import com.wapp.wearmusic.R
 
@@ -25,12 +25,13 @@ import com.wapp.wearmusic.R
 fun AboutScreen(
     onBackClick: () -> Unit
 ) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .safeDrawingPadding()
+    val listState = rememberScalingLazyListState()
+    ScreenScaffold(
+        scrollState = listState
     ) {
         ScalingLazyColumn(
+            state = listState,
+            contentPadding = it,
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)

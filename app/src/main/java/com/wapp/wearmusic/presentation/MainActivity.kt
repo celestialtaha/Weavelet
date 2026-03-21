@@ -13,7 +13,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.wear.compose.material3.TimeText
+import androidx.wear.compose.material3.AppScaffold
 import com.wapp.wearmusic.R
 import com.wapp.wearmusic.complication.MusicComplicationProvider
 import com.wapp.wearmusic.presentation.screens.MusicPlayerApp
@@ -93,7 +93,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WearMusicApp() {
     WearMusicTheme {
-        TimeText()
-        MusicPlayerApp()
+        AppScaffold {
+            MusicPlayerApp()
+        }
     }
 }
