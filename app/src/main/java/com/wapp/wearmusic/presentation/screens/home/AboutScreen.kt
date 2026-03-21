@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -29,6 +30,7 @@ import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.Icon
+import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
@@ -42,6 +44,10 @@ fun AboutScreen(
     onBackClick: () -> Unit
 ) {
     val listState = rememberScalingLazyListState()
+    val configuration = LocalConfiguration.current
+    val minScreenDp = minOf(configuration.screenWidthDp, configuration.screenHeightDp)
+    val compact = minScreenDp <= 220
+    val horizontalPadding = if (compact) 8.dp else 12.dp
     val context = LocalContext.current
     val packageInfo = remember(context) {
         runCatching {
@@ -70,15 +76,23 @@ fun AboutScreen(
         ScalingLazyColumn(
             state = listState,
             contentPadding = it,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = horizontalPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             item {
+                ListHeader(modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.about))
+                }
+            }
+
+            item {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 16.dp),
+                        .padding(top = if (compact) 6.dp else 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
@@ -107,12 +121,6 @@ fun AboutScreen(
                     Text(
                         text = stringResource(R.string.app_name),
                         style = MaterialTheme.typography.titleMedium,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = stringResource(R.string.about),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
                 }

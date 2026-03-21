@@ -1,20 +1,24 @@
 package com.wapp.wearmusic.presentation.screens.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material3.Button
-import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ListHeader
+import androidx.wear.compose.material3.ListSubHeader
 import androidx.wear.compose.material3.RadioButton
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.SwitchButton
@@ -29,23 +33,25 @@ fun SettingsScreen(
 ) {
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
     val listState = rememberScalingLazyListState()
+    val configuration = LocalConfiguration.current
+    val minScreenDp = minOf(configuration.screenWidthDp, configuration.screenHeightDp)
+    val compact = minScreenDp <= 220
+    val horizontalPadding = if (compact) 10.dp else 14.dp
 
     ScreenScaffold(
         scrollState = listState,
     ) {
         ScalingLazyColumn(
             state = listState,
-            modifier = Modifier.padding(horizontal = 16.dp),
+            modifier = Modifier.padding(horizontal = horizontalPadding),
             contentPadding = it,
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             item {
-                Text(
-                    text = stringResource(R.string.settings),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(vertical = 16.dp)
-                )
+                ListHeader(modifier = Modifier.fillMaxWidth()) {
+                    Text(text = stringResource(R.string.settings))
+                }
             }
 
             item {
@@ -71,10 +77,9 @@ fun SettingsScreen(
             }
 
             item {
-                Text(
-                    text = stringResource(R.string.sort_by),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 16.dp)
+                ListSubHeader(
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(text = stringResource(R.string.sort_by)) }
                 )
             }
             item {
@@ -116,6 +121,8 @@ fun SettingsScreen(
                     Text(stringResource(R.string.back))
                 }
             }
+
+            item { Spacer(Modifier.height(8.dp)) }
         }
     }
 }

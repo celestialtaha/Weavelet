@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -14,6 +15,7 @@ import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
@@ -30,69 +32,83 @@ fun HomeScreen(
     onAboutClick: () -> Unit
 ) {
     val listState = rememberScalingLazyListState()
+    val configuration = LocalConfiguration.current
+    val minScreenDp = minOf(configuration.screenWidthDp, configuration.screenHeightDp)
+    val compact = minScreenDp <= 220
+    val horizontalPadding = if (compact) 8.dp else 12.dp
+    val actionWidth = if (compact) 0.9f else 0.84f
+
     ScreenScaffold(
         scrollState = listState
     ) {
         ScalingLazyColumn(
             state = listState,
             contentPadding = it,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = horizontalPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)
         ) {
-            // App Title
             item {
-                Text(
-                    text = stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.titleLarge,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 20.dp, bottom = 12.dp)
+                ListHeader(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.titleLarge,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+
+            item {
+                HomeActionButton(
+                    label = stringResource(R.string.music_library),
+                    onClick = onLibraryClick,
+                    widthFraction = actionWidth,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                 )
             }
-            
-            // Music Library Button
+
             item {
-                Button(
-                    onClick = onLibraryClick,
-                    modifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .padding(vertical = 1.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.secondary
-                    )
-                ) {
-                    Text(stringResource(R.string.music_library))
-                }
-            }
-            
-            // Settings Button
-            item {
-                Button(
+                HomeActionButton(
+                    label = stringResource(R.string.settings),
                     onClick = onSettingsClick,
-                    modifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .padding(vertical = 1.dp),
+                    widthFraction = actionWidth,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.secondary
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-                ) {
-                    Text(stringResource(R.string.settings))
-                }
+                )
             }
-            
-            // About Button
+
             item {
-                Button(
+                HomeActionButton(
+                    label = stringResource(R.string.about),
                     onClick = onAboutClick,
-                    modifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .padding(vertical = 1.dp),
-                ) {
-                    Text(stringResource(R.string.about))
-                }
+                    widthFraction = actionWidth
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun HomeActionButton(
+    label: String,
+    onClick: () -> Unit,
+    widthFraction: Float,
+    colors: androidx.wear.compose.material3.ButtonColors = ButtonDefaults.buttonColors()
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth(widthFraction)
+            .padding(vertical = 1.dp),
+        colors = colors
+    ) {
+        Text(label)
     }
 }
