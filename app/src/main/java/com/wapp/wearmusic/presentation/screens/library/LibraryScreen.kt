@@ -118,11 +118,10 @@ fun LibraryScreen(
 
     ScreenScaffold(
         scrollState = listState
-    ) {
+    ) { contentPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(it)
         ) {
             // 6) Show loading/empty/error if needed
             when (uiState) {
@@ -133,6 +132,7 @@ fun LibraryScreen(
                     // 7) Main track list
                     ScalingLazyColumn(
                         state = listState,
+                        contentPadding = contentPadding,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = horizontalPadding),
