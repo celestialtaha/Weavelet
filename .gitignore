@@ -59,6 +59,8 @@ out/
 # Keystore files
 *.jks
 *.keystore
+*.jks.base64
+keystore.base64
 
 # Misc
 .DS_Store
