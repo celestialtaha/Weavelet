@@ -1,91 +1,70 @@
-# Weavelet 🎵 - Your Offline Music Companion for Wear OS
+# Weavelet
 
-**Weavelet is a modern, minimal, and powerful offline music player designed exclusively for your Wear OS smartwatch. Enjoy your favorite tunes on the go, without needing your phone or an internet connection!**
+Offline music player for Wear OS smartwatches.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) <!-- Replace with your actual license -->
-[![GitHub issues](https://img.shields.io/github/issues/your-username/weavelet)](https://github.com/your-username/weavelet/issues) <!-- Replace with your GitHub username/repo -->
-[![GitHub forks](https://img.shields.io/github/forks/your-username/weavelet)](https://github.com/your-username/weavelet/network) <!-- Replace with your GitHub username/repo -->
-[![GitHub stars](https://img.shields.io/github/stars/your-username/weavelet)](https://github.com/your-username/weavelet/stargazers) <!-- Replace with your GitHub username/repo -->
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![GitHub Release](https://img.shields.io/github/v/release/celestialtaha/Weavelet)](https://github.com/celestialtaha/Weavelet/releases)
+[![GitHub issues](https://img.shields.io/github/issues/celestialtaha/Weavelet)](https://github.com/celestialtaha/Weavelet/issues)
+[![Android CI](https://github.com/celestialtaha/Weavelet/actions/workflows/ci.yml/badge.svg)](https://github.com/celestialtaha/Weavelet/actions/workflows/ci.yml)
 
-## ✨ Overview
+## Overview
+Weavelet is a standalone Wear OS music app focused on local/offline playback, fast browsing, and modern Wear-native UI.
 
-Weavelet aims to provide a seamless and enjoyable offline music listening experience on Wear OS devices. It's built with a focus on simplicity, performance, and essential features that matter most to music lovers who want their library accessible right from their wrist.
+## Key Features
+- Standalone Wear OS experience.
+- Offline playback from watch storage.
+- Playback controls: play/pause, previous/next, shuffle, repeat, crown-based volume.
+- Efficient library browsing with lazy loading.
+- Wear integrations: Tiles and Complications.
+- Material 3 + Compose UI.
 
-As a standalone application, Weavelet lets you carry your music library with you, whether you're working out, commuting, or just want to disconnect from your phone.
+## Tech Stack
+- Kotlin
+- Jetpack Compose (Wear)
+- Material 3 (Wear)
+- Media3
+- Horologist
+- Coroutines
+- Coil
 
-## 🚀 Key Features
+## Releases
+GitHub Releases are published from version tags (`v*`) and include APK assets.
 
-*   **⌚ Standalone Wear OS Experience:** Designed from the ground up for smartwatches.
-*   **🎶 True Offline Playback:** Listen to your music library directly from your watch storage.
-*   ** modernen UI:** Crafted with the latest Jetpack Compose and Material 3 design principles for a clean and intuitive interface.
-*   **🎧 Core Playback Controls:**
-    *   Play, Pause, Skip Tracks
-    *   Shuffle Mode
-    *   Repeat Modes (Off, One, All)
-    *   Volume Control (via crown rotation)
-*   **📁 Efficient Library Management:**
-    *   Automatic scanning for music files on your device.
-    *   Optimized for large music libraries with pagination and lazy loading of album art.
-*   **⚙️ Wear OS Integrations:**
-    *   **Tiles Support:** Quick access to controls and recently played music.
-    *   **Complications Support:** See what's playing at a glance on your watch face.
-*   **🔋 Battery Friendly:** Optimized for efficient power usage during playback.
+- Release page: <https://github.com/celestialtaha/Weavelet/releases>
+- Typical assets:
+  - `weavelet-debug.apk` (always generated; installable)
+  - `weavelet-release-signed.apk` (generated when signing secrets are configured)
+  - `weavelet-release-unsigned.apk` (fallback if signing is not configured)
+  - `SHA256SUMS.txt` (checksums)
 
-## 🛠️ Tech Stack
+To generate signed release APKs in GitHub Actions, configure these repository secrets:
+- `ANDROID_SIGNING_KEY_BASE64`
+- `ANDROID_ALIAS`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_PASSWORD`
 
-*   **Kotlin:** For modern, concise, and safe Android development.
-*   **Jetpack Compose:** For building a beautiful and responsive UI on Wear OS.
-*   **Material 3:** Adhering to the latest Material Design guidelines.
-*   **Horologist Libraries:** Leveraging Google's libraries for robust Wear OS features (Media UI, Tiles, Layouts).
-*   **Media3:** The recommended Android library for powerful and flexible media playback.
-*   **Coroutines:** For efficient asynchronous programming.
-*   **Coil:** For fast and efficient image loading (album art).
-
-## 🗺️ Roadmap & Future Vision
-
-Weavelet is an actively developed project with exciting features planned! Our roadmap includes:
-
-*   **Playlist Management:** Create, edit, and manage your custom playlists.
-*   **Enhanced Audio Controls:** Skip intervals, equalizer presets.
-*   **Smart Queue Management:** "Play Next," reorder queue.
-*   **Advanced Search & Filtering:** Find your music faster.
-*   **Accessibility Enhancements:** Voice commands, text size options.
-*   **Customization:** Themes and layout options.
-
-For a detailed look at our plans, check out the [ROADMAP.md](roadmap.md) file.
-
-## 🖼️ Screenshots
-
-*(Coming Soon! We'll add some visuals of Weavelet in action.)*
-
-## 📥 Getting Started
-
-*(Instructions on how to install/build the app will be added here. For now, you can clone the repository and build it using Android Studio.)*
-
+### Create a release
+1. Bump app version in `app/build.gradle.kts`.
+2. Commit and push.
+3. Create and push a tag, for example:
 ```bash
-# Example for developers
-git clone https://github.com/your-username/weavelet.git # Replace with your repo URL
-cd weavelet
-# Open in Android Studio and build
+git tag v1.1.0
+git push origin v1.1.0
+```
+4. GitHub Actions builds APKs and creates the release automatically.
+
+## Development
+```bash
+git clone git@github.com:celestialtaha/Weavelet.git
+cd Weavelet
+./gradlew :app:assembleDebug
 ```
 
-## 🤝 Contributing
+## Roadmap
+See [roadmap.md](roadmap.md).
 
-Weavelet is an open-source project, and contributions are welcome! Whether it's bug reports, feature suggestions, or code contributions, please feel free to:
+## Contributing
+Contributions are welcome. Please open an issue first for larger feature work.
 
-1.  Fork the repository.
-2.  Create a new branch (`git checkout -b feature/your-feature-name`).
-3.  Make your changes.
-4.  Commit your changes (`git commit -m 'Add some feature'`).
-5.  Push to the branch (`git push origin feature/your-feature-name`).
-6.  Open a Pull Request.
-
-Please check our [ROADMAP.md](roadmap.md) for ideas or open an issue to discuss new features or bugs.
-
-## 📜 License
-
-This project is licensed under the [Apache License 2.0](LICENSE). <!-- Make sure to add a LICENSE file and update this if different -->
-
----
-
-Made with ❤️ for Wear OS users.
+## License
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
