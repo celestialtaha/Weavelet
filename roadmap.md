@@ -47,6 +47,8 @@ Status legend:
 - `DONE` Full-screen art backdrop + edge progress
 - `DONE` Home spacing improvements
 - `DONE` About page redesign + runtime version display
+- `DONE` Round-safe spacing pass across Home/Library/Settings/About
+- `DONE` Material 3 list pattern pass (`ListHeader`, `ListSubHeader`, `Card`) for core screens
 - `NEXT` Dedicated seek mode (rotary seek vs volume mode)
 
 ## 2.3 Stability/performance/refactor
@@ -78,7 +80,7 @@ Status legend:
 | Trend / Direction | Why it matters | Weavelet action | Status |
 |---|---|---|---|
 | Round-first, glanceable Wear UI patterns | Better readability and faster wrist interactions | Keep compact controls, edge-aware indicators, high-contrast overlays | `DONE` + `ACTIVE` |
-| Compose for Wear + Material 3 component consistency | Faster iteration + platform-consistent UX | Continue replacing custom primitives where platform components fit | `ACTIVE` |
+| Compose for Wear + Material 3 component consistency | Faster iteration + platform-consistent UX | Continue replacing custom primitives where platform components fit | `DONE` + `ACTIVE` |
 | Richer motion and depth (including glass-like surfaces) | Modern look, clearer focus hierarchy | Add an **experimental** “glass” visual mode for non-critical overlays only, gated by contrast checks | `NEXT` |
 | Release automation for open-source apps | Better trust and easier installs for users | Keep tag-driven releases with APK assets + checksums | `DONE` |
 | Reliability-first media apps (Media3 lifecycle rigor) | Prevent playback dropouts and state drift | Expand regression tests around controller/session lifecycle | `NEXT` |
