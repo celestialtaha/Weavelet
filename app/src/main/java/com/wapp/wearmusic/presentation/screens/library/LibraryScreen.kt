@@ -35,12 +35,15 @@ import androidx.wear.compose.material3.CardDefaults
 import androidx.wear.compose.material3.CircularProgressIndicator
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.ListHeader
+import androidx.wear.compose.material3.ListSubHeader
 import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.OutlinedCard
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.wapp.wearmusic.R
+import com.wapp.wearmusic.core.data.model.ArtistSummary
 import com.wapp.wearmusic.core.data.model.Track
 import com.wapp.wearmusic.presentation.viewmodel.MusicPlayerUiState
 import com.wapp.wearmusic.presentation.viewmodel.MusicPlayerViewModel
@@ -51,11 +54,14 @@ import com.wapp.wearmusic.presentation.screens.LoadingScreen
 import com.wapp.wearmusic.presentation.screens.EmptyLibraryScreen
 import kotlinx.coroutines.delay
 
+private enum class LibraryMode { TRACKS, ARTISTS }
+
 @Composable
 fun LibraryScreen(
     viewModel: MusicPlayerViewModel,
     settingsViewModel: SettingsViewModel,
     onTrackClick: (Int) -> Unit,
+    onPlayArtistTrack: (List<Track>, Int) -> Unit
 ) {
     // 1) Observe ViewModel state
     val tracks by viewModel.tracks.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -64,6 +70,10 @@ fun LibraryScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val paginationState by viewModel.paginationState.collectAsStateWithLifecycle()
     val hasMoreTracks by viewModel.hasMoreTracks.collectAsStateWithLifecycle()
+    val artists by viewModel.artists.collectAsStateWithLifecycle(initialValue = emptyList())
+    val artistsLoading by viewModel.artistsLoading.collectAsStateWithLifecycle()
+    val selectedArtistTracks by viewModel.selectedArtistTracks.collectAsStateWithLifecycle(initialValue = emptyList())
+    val selectedArtistTracksLoading by viewModel.selectedArtistTracksLoading.collectAsStateWithLifecycle()
 
     val listState = rememberScalingLazyListState()
     val layoutInfo by remember { derivedStateOf { listState.layoutInfo } }
@@ -77,15 +87,35 @@ fun LibraryScreen(
     val horizontalPadding = if (compact) 4.dp else 6.dp
     val trackItemWidthFraction = if (compact) 0.98f else 0.96f
 
+    var mode by rememberSaveable { mutableStateOf(LibraryMode.TRACKS) }
+    var selectedArtistId by rememberSaveable { mutableLongStateOf(-1L) }
+    var selectedArtistName by rememberSaveable { mutableStateOf("") }
+
     LaunchedEffect(settings.sortBy) {
         viewModel.loadTracks()
+    }
+
+    LaunchedEffect(mode) {
+        if (mode == LibraryMode.ARTISTS) {
+            viewModel.loadArtists()
+        } else {
+            selectedArtistId = -1L
+            selectedArtistName = ""
+            viewModel.clearSelectedArtistTracks()
+        }
+    }
+
+    LaunchedEffect(mode, selectedArtistId) {
+        if (mode == LibraryMode.ARTISTS && selectedArtistId >= 0) {
+            viewModel.loadTracksForArtist(selectedArtistId)
+        }
     }
 
     // 3) Search query
     var query by rememberSaveable { mutableStateOf("") }
 
     // 4) Filtered results
-    val results: List<Track> = remember(tracks, query) {
+    val trackResults: List<Track> = remember(tracks, query) {
         if (query.isBlank()) {
             tracks
         } else {
@@ -98,8 +128,30 @@ fun LibraryScreen(
         }
     }
 
+    val artistResults: List<ArtistSummary> = remember(artists, query) {
+        if (query.isBlank()) {
+            artists
+        } else {
+            val q = query.trim()
+            artists.filter { it.name.contains(q, ignoreCase = true) }
+        }
+    }
+
+    val artistTrackResults: List<Track> = remember(selectedArtistTracks, query) {
+        if (query.isBlank()) {
+            selectedArtistTracks
+        } else {
+            val q = query.trim()
+            selectedArtistTracks.filter {
+                it.title.contains(q, ignoreCase = true) ||
+                    it.album.contains(q, ignoreCase = true)
+            }
+        }
+    }
+
     // 5) Auto-load more when scrolling near the end
-    LaunchedEffect(layoutInfo, hasMoreTracks, paginationState) {
+    LaunchedEffect(layoutInfo, hasMoreTracks, paginationState, mode, selectedArtistId) {
+        if (mode != LibraryMode.TRACKS || selectedArtistId >= 0) return@LaunchedEffect
         if (layoutInfo.visibleItemsInfo.isNotEmpty() &&
             paginationState is PaginationState.Idle &&
             hasMoreTracks) {
@@ -144,63 +196,169 @@ fun LibraryScreen(
                             }
                         }
 
+                        item {
+                            ModeChipsRow(
+                                selectedMode = mode,
+                                onModeSelected = { selected ->
+                                    mode = selected
+                                    query = ""
+                                },
+                                compact = compact,
+                                modifier = Modifier.fillMaxWidth(trackItemWidthFraction)
+                            )
+                        }
+
                         // (a) Search box
                         item {
+                            val hintText = when {
+                                mode == LibraryMode.TRACKS -> stringResource(R.string.search_tracks_hint)
+                                selectedArtistId >= 0 -> stringResource(R.string.search_artist_tracks_hint)
+                                else -> stringResource(R.string.search_artists_hint)
+                            }
                             SearchBox(
                                 query = query,
                                 onQueryChange = { query = it },
+                                hint = hintText,
                                 compact = compact,
                                 modifier = Modifier.fillMaxWidth(trackItemWidthFraction)
                             )
                             Spacer(Modifier.height(8.dp))
                         }
 
-                        // (b) If no results
-                        if (results.isEmpty()) {
-                            item {
-                                Text(
-                                    if (query.isNotEmpty()) stringResource(R.string.no_music_found)
-                                    else stringResource(R.string.empty_library),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = .6f),
-                                    modifier = Modifier
-                                        .fillMaxWidth(trackItemWidthFraction)
-                                        .padding(top = 16.dp),
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        } else {
-                            // (c) Each track row
-                            itemsIndexed(
-                                items = results,
-                                key = { _, track -> track.id }
-                            ) { _, track ->
-                                TrackItem(
-                                    track = track,
-                                    showAlbumArt = showArt,
-                                    isPlaying = track.id == currentTrackId,
-                                    compact = compact,
-                                    itemWidthFraction = trackItemWidthFraction,
-                                    onClick = {
-                                        val index = tracks.indexOfFirst { it.id == track.id }
-                                        if (index >= 0) onTrackClick(index)
-                                    }
-                                )
-                            }
-
-                            // (d) Pagination loading indicator
-                            if (paginationState is PaginationState.LoadingMore) {
+                        if (mode == LibraryMode.TRACKS) {
+                            if (trackResults.isEmpty()) {
                                 item {
-                                    CircularProgressIndicator(
+                                    Text(
+                                        if (query.isNotEmpty()) stringResource(R.string.no_music_found)
+                                        else stringResource(R.string.empty_library),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = .6f),
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp)
+                                            .fillMaxWidth(trackItemWidthFraction)
+                                            .padding(top = 16.dp),
+                                        textAlign = TextAlign.Center
                                     )
                                 }
                             }
+                            else {
+                                itemsIndexed(
+                                    items = trackResults,
+                                    key = { _, track -> track.id }
+                                ) { _, track ->
+                                    TrackItem(
+                                        track = track,
+                                        showAlbumArt = showArt,
+                                        isPlaying = track.id == currentTrackId,
+                                        compact = compact,
+                                        itemWidthFraction = trackItemWidthFraction,
+                                        onClick = {
+                                            val index = tracks.indexOfFirst { it.id == track.id }
+                                            if (index >= 0) onTrackClick(index)
+                                        }
+                                    )
+                                }
 
-                            item { Spacer(Modifier.height(32.dp)) }
+                                if (paginationState is PaginationState.LoadingMore) {
+                                    item {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            if (selectedArtistId < 0) {
+                                if (artistsLoading && artistResults.isEmpty()) {
+                                    item {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.padding(vertical = 10.dp)
+                                        )
+                                    }
+                                } else if (artistResults.isEmpty()) {
+                                    item {
+                                        Text(
+                                            if (query.isNotEmpty()) stringResource(R.string.no_artists_found)
+                                            else stringResource(R.string.no_artists_available),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = .6f),
+                                            modifier = Modifier
+                                                .fillMaxWidth(trackItemWidthFraction)
+                                                .padding(top = 16.dp),
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                } else {
+                                    itemsIndexed(
+                                        items = artistResults,
+                                        key = { _, artist -> artist.id }
+                                    ) { _, artist ->
+                                        ArtistItem(
+                                            artist = artist,
+                                            compact = compact,
+                                            itemWidthFraction = trackItemWidthFraction,
+                                            onClick = {
+                                                selectedArtistId = artist.id
+                                                selectedArtistName = artist.name
+                                                query = ""
+                                            }
+                                        )
+                                    }
+                                }
+                            } else {
+                                item {
+                                    ArtistHeader(
+                                        artistName = selectedArtistName,
+                                        compact = compact,
+                                        itemWidthFraction = trackItemWidthFraction,
+                                        onBackToArtists = {
+                                            selectedArtistId = -1L
+                                            selectedArtistName = ""
+                                            query = ""
+                                            viewModel.clearSelectedArtistTracks()
+                                        }
+                                    )
+                                }
+
+                                if (selectedArtistTracksLoading && artistTrackResults.isEmpty()) {
+                                    item {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.padding(vertical = 10.dp)
+                                        )
+                                    }
+                                } else if (artistTrackResults.isEmpty()) {
+                                    item {
+                                        Text(
+                                            if (query.isNotEmpty()) stringResource(R.string.no_music_found)
+                                            else stringResource(R.string.no_tracks_for_artist),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = .6f),
+                                            modifier = Modifier
+                                                .fillMaxWidth(trackItemWidthFraction)
+                                                .padding(top = 16.dp),
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                } else {
+                                    itemsIndexed(
+                                        items = artistTrackResults,
+                                        key = { _, track -> track.id }
+                                    ) { index, track ->
+                                        TrackItem(
+                                            track = track,
+                                            showAlbumArt = showArt,
+                                            isPlaying = track.id == currentTrackId,
+                                            compact = compact,
+                                            itemWidthFraction = trackItemWidthFraction,
+                                            onClick = { onPlayArtistTrack(artistTrackResults, index) }
+                                        )
+                                    }
+                                }
+                            }
                         }
+
+                        item { Spacer(Modifier.height(32.dp)) }
                     }
                 }
             }
@@ -224,6 +382,7 @@ fun LibraryScreen(
 private fun SearchBox(
     query: String,
     onQueryChange: (String) -> Unit,
+    hint: String,
     compact: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -235,7 +394,7 @@ private fun SearchBox(
     ) {
         if (query.isBlank()) {
             Text(
-                stringResource(R.string.search_hint),
+                hint,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = .6f),
                 modifier = Modifier.padding(start = 24.dp)
@@ -267,6 +426,146 @@ private fun SearchBox(
                         .clickable { onQueryChange("") }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ModeChipsRow(
+    selectedMode: LibraryMode,
+    onModeSelected: (LibraryMode) -> Unit,
+    compact: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.padding(bottom = if (compact) 2.dp else 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ModeChip(
+            label = stringResource(R.string.library_mode_tracks),
+            selected = selectedMode == LibraryMode.TRACKS,
+            compact = compact,
+            modifier = Modifier.weight(1f),
+            onClick = { onModeSelected(LibraryMode.TRACKS) }
+        )
+        ModeChip(
+            label = stringResource(R.string.library_mode_artists),
+            selected = selectedMode == LibraryMode.ARTISTS,
+            compact = compact,
+            modifier = Modifier.weight(1f),
+            onClick = { onModeSelected(LibraryMode.ARTISTS) }
+        )
+    }
+}
+
+@Composable
+private fun ModeChip(
+    label: String,
+    selected: Boolean,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val colors = if (selected) {
+        CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    } else {
+        CardDefaults.outlinedCardColors(
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+
+    OutlinedCard(
+        onClick = onClick,
+        modifier = modifier,
+        colors = colors
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = if (compact) 6.dp else 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArtistItem(
+    artist: ArtistSummary,
+    compact: Boolean,
+    itemWidthFraction: Float,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth(itemWidthFraction)
+            .padding(vertical = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = artist.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = stringResource(R.string.artist_track_count_format, artist.trackCount),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun ArtistHeader(
+    artistName: String,
+    compact: Boolean,
+    itemWidthFraction: Float,
+    onBackToArtists: () -> Unit
+) {
+    OutlinedCard(
+        onClick = onBackToArtists,
+        modifier = Modifier
+            .fillMaxWidth(itemWidthFraction)
+            .padding(bottom = 4.dp),
+        colors = CardDefaults.outlinedCardColors()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = stringResource(R.string.all_artists),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.height(if (compact) 2.dp else 4.dp))
+            ListSubHeader(
+                modifier = Modifier.fillMaxWidth(),
+                label = {
+                    Text(
+                        text = artistName,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            )
         }
     }
 }

@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.foundation.BasicSwipeToDismissBox
 import androidx.wear.compose.foundation.SwipeToDismissValue
 import androidx.wear.compose.foundation.rememberSwipeToDismissBoxState
+import com.wapp.wearmusic.core.data.model.Track
 import com.wapp.wearmusic.presentation.screens.library.LibraryScreen
 import com.wapp.wearmusic.presentation.screens.player.PlayerScreen
 import com.wapp.wearmusic.presentation.screens.home.HomeScreen
@@ -74,11 +75,16 @@ fun MusicPlayerApp() {
                 )
                 Screen.Player -> LibraryContent(
                     viewModel = viewModel,
-                    settingsViewModel = settingsViewModel
-                ) { index ->
-                    viewModel.playTracks(index)
-                    currentScreen = Screen.Player
-                }
+                    settingsViewModel = settingsViewModel,
+                    onTrackClick = { index ->
+                        viewModel.playTracks(index)
+                        currentScreen = Screen.Player
+                    },
+                    onPlayArtistTrack = { tracks, index ->
+                        viewModel.playTrackList(tracks, index)
+                        currentScreen = Screen.Player
+                    }
+                )
                 Screen.Settings, Screen.About -> HomeScreen(
                     onLibraryClick = { /* Handled in foreground */ },
                     onSettingsClick = { /* Handled in foreground */ },
@@ -96,11 +102,16 @@ fun MusicPlayerApp() {
                 )
                 Screen.Library -> LibraryContent(
                     viewModel = viewModel,
-                    settingsViewModel = settingsViewModel
-                ) { index ->
-                    viewModel.playTracks(index)
-                    currentScreen = Screen.Player
-                }
+                    settingsViewModel = settingsViewModel,
+                    onTrackClick = { index ->
+                        viewModel.playTracks(index)
+                        currentScreen = Screen.Player
+                    },
+                    onPlayArtistTrack = { tracks, index ->
+                        viewModel.playTrackList(tracks, index)
+                        currentScreen = Screen.Player
+                    }
+                )
                 Screen.Player -> PlayerScreen(
                     viewModel = viewModel,
                     settingsViewModel = settingsViewModel
@@ -121,7 +132,8 @@ fun MusicPlayerApp() {
 private fun LibraryContent(
     viewModel: MusicPlayerViewModel,
     settingsViewModel: SettingsViewModel,
-    onTrackClick: (Int) -> Unit
+    onTrackClick: (Int) -> Unit,
+    onPlayArtistTrack: (List<Track>, Int) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -132,7 +144,8 @@ private fun LibraryContent(
         MusicPlayerUiState.Success -> LibraryScreen(
             viewModel = viewModel,
             settingsViewModel = settingsViewModel,
-            onTrackClick = onTrackClick
+            onTrackClick = onTrackClick,
+            onPlayArtistTrack = onPlayArtistTrack
         )
     }
 }

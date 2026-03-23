@@ -13,6 +13,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
 import com.wapp.wearmusic.complication.MusicComplicationProvider
+import com.wapp.wearmusic.core.data.model.ArtistSummary
 import com.wapp.wearmusic.core.data.model.RepeatMode
 import com.wapp.wearmusic.core.data.model.Track
 import com.wapp.wearmusic.core.data.repository.MusicRepository
@@ -37,7 +38,13 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val _paginationState = MutableStateFlow<PaginationState>(PaginationState.Idle)
     private val _currentPage = MutableStateFlow(0)
     private val _hasMoreTracks = MutableStateFlow(true)
+    private val _artists = MutableStateFlow<List<ArtistSummary>>(emptyList())
+    private val _artistsLoading = MutableStateFlow(false)
+    private val _selectedArtistTracks = MutableStateFlow<List<Track>>(emptyList())
+    private val _selectedArtistTracksLoading = MutableStateFlow(false)
     private var loadedSortBy: String? = null
+    private var loadedArtists = false
+    private var loadedArtistId: Long? = null
 
     private val sessionToken = SessionToken(
         app, ComponentName(app, MusicPlaybackService::class.java)
@@ -90,6 +97,10 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     val paginationState: StateFlow<PaginationState> = _paginationState.asStateFlow()
     val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
     val hasMoreTracks: StateFlow<Boolean> = _hasMoreTracks.asStateFlow()
+    val artists: StateFlow<List<ArtistSummary>> = _artists.asStateFlow()
+    val artistsLoading: StateFlow<Boolean> = _artistsLoading.asStateFlow()
+    val selectedArtistTracks: StateFlow<List<Track>> = _selectedArtistTracks.asStateFlow()
+    val selectedArtistTracksLoading: StateFlow<Boolean> = _selectedArtistTracksLoading.asStateFlow()
     val currentTrackId: StateFlow<String?> = _playbackState
         .map { it.currentTrack?.id }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -122,6 +133,10 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             if (forceRefresh) {
                 repo.clearCache()
+                loadedArtists = false
+                loadedArtistId = null
+                _artists.value = emptyList()
+                _selectedArtistTracks.value = emptyList()
             }
             loadFirstPage(sortBy)
         }
@@ -155,6 +170,10 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshLibrary() {
         viewModelScope.launch {
             repo.refreshLibraryInBackground()
+            loadedArtists = false
+            loadedArtistId = null
+            _artists.value = emptyList()
+            _selectedArtistTracks.value = emptyList()
             val sortBy = sharedPreferences.getString("sort_by", "title") ?: "title"
             loadFirstPage(sortBy)
         }
@@ -176,6 +195,10 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
 
             if (knownFingerprint != null && knownFingerprint != currentFingerprint) {
                 repo.clearCache()
+                loadedArtists = false
+                loadedArtistId = null
+                _artists.value = emptyList()
+                _selectedArtistTracks.value = emptyList()
                 val sortBy = sharedPreferences.getString("sort_by", "title") ?: "title"
                 loadFirstPage(sortBy)
             } else if (knownFingerprint == null) {
@@ -184,20 +207,63 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun loadArtists(forceRefresh: Boolean = false) {
+        if (_artistsLoading.value) return
+        if (!forceRefresh && loadedArtists && _artists.value.isNotEmpty()) return
+
+        viewModelScope.launch {
+            _artistsLoading.value = true
+            try {
+                _artists.value = repo.getArtists(forceFresh = forceRefresh).first()
+                loadedArtists = true
+            } finally {
+                _artistsLoading.value = false
+            }
+        }
+    }
+
+    fun loadTracksForArtist(artistId: Long, forceRefresh: Boolean = false) {
+        if (_selectedArtistTracksLoading.value) return
+        if (!forceRefresh && loadedArtistId == artistId && _selectedArtistTracks.value.isNotEmpty()) {
+            return
+        }
+        viewModelScope.launch {
+            _selectedArtistTracksLoading.value = true
+            try {
+                _selectedArtistTracks.value = repo
+                    .getTracksByArtist(artistId = artistId, sortBy = "title", forceFresh = forceRefresh)
+                    .first()
+                loadedArtistId = artistId
+            } finally {
+                _selectedArtistTracksLoading.value = false
+            }
+        }
+    }
+
+    fun clearSelectedArtistTracks() {
+        loadedArtistId = null
+        _selectedArtistTracks.value = emptyList()
+    }
+
     fun playTracks(startIndex: Int = 0) {
         if (_tracks.value.isEmpty()) return
+        playTrackList(_tracks.value, startIndex)
+    }
+
+    fun playTrackList(trackList: List<Track>, startIndex: Int = 0) {
+        if (trackList.isEmpty()) return
         viewModelScope.launch {
             val controller = controllerDeferred.await()
             // Keep explicit service startup to preserve previous behavior.
             getApplication<Application>().startForegroundService(
                 Intent(getApplication(), MusicPlaybackService::class.java)
             )
-            controller.setMediaItems(_tracks.value.map { it.toCachedMediaItem() }, startIndex, 0)
+            controller.setMediaItems(trackList.map { it.toCachedMediaItem() }, startIndex, 0)
             controller.prepare()
             if (sharedPreferences.getBoolean("auto_play_on_start", false)) {
                 controller.play()
             }
-            _playbackState.value = _playbackState.value.copy(currentTrack = _tracks.value.getOrNull(startIndex))
+            _playbackState.value = _playbackState.value.copy(currentTrack = trackList.getOrNull(startIndex))
         }
     }
 

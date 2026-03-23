@@ -21,6 +21,12 @@ data class TrackPage(
     val totalCount: Int
 )
 
+data class ArtistSummary(
+    val id: Long,
+    val name: String,
+    val trackCount: Int
+)
+
 data class CachedTrackMetadata(
     val track: Track,
     val timestamp: Long,
