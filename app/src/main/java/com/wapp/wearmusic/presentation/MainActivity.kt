@@ -25,6 +25,7 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MusicPlayerViewModel by viewModels()
     private val settingsViewModel: SettingsViewModel by viewModels()
+    private var contentInitialized = false
 
     /** Single-permission launcher keeps the callback minimal. */
     private val permissionLauncher = registerForActivityResult(
@@ -32,9 +33,11 @@ class MainActivity : ComponentActivity() {
     ) { granted ->
         if (granted) {
             // Permission granted - proceed with app initialization
-            initializeApp()
+            initializeAppIfNeeded()
         } else {
-            showPermissionRationale()
+            // Do not auto-loop permission prompts; keep app usable and inform user.
+            toast(R.string.need_storage_permission)
+            initializeAppIfNeeded()
         }
     }
 
@@ -63,23 +66,17 @@ class MainActivity : ComponentActivity() {
     /** Handles both ≥34 and <34 storage-read permissions. */
     private fun checkOrRequestPermission() {
         when {
-            hasMediaReadPermission() -> initializeApp()
-
-            shouldShowRequestPermissionRationale(getMediaReadPermission()) -> showPermissionRationale()
-
+            hasMediaReadPermission() -> initializeAppIfNeeded()
             else -> permissionLauncher.launch(getMediaReadPermission())
         }
     }
 
-    private fun initializeApp() {
+    private fun initializeAppIfNeeded() {
+        if (contentInitialized) return
+        contentInitialized = true
         setContent {
             WearMusicApp()
         }
-    }
-
-    private fun showPermissionRationale() {
-        toast(R.string.need_storage_permission)
-        permissionLauncher.launch(getMediaReadPermission())
     }
 
     private fun getMediaReadPermission(): String {
