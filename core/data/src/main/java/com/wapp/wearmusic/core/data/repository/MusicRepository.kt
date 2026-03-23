@@ -71,7 +71,8 @@ class MusicRepository(private val context: Context) {
 
     data class LibraryFingerprint(
         val totalTracks: Int,
-        val latestDateAddedSec: Long
+        val latestDateAddedSec: Long,
+        val mediaStoreVersion: String?
     )
 
     /**
@@ -116,8 +117,10 @@ class MusicRepository(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val queryArgs = android.os.Bundle().apply {
                 putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
-                putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, null)
-                putString(android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS, sortConfig.sortColumn)
+                putStringArray(
+                    android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS,
+                    arrayOf(sortConfig.sortColumn)
+                )
                 putInt(android.content.ContentResolver.QUERY_ARG_SORT_DIRECTION, sortConfig.sortDirection)
                 putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, limit)
                 putInt(android.content.ContentResolver.QUERY_ARG_OFFSET, offset)
@@ -133,8 +136,10 @@ class MusicRepository(private val context: Context) {
             }
         }
 
-        val totalCount = getTotalTrackCount()
-        val hasMore = offset + tracks.size < totalCount
+        // Avoid relying on cached total-count for pagination decisions.
+        // This prevents stale count caches from blocking "load more" after library changes.
+        val hasMore = tracks.size == limit
+        val totalCount = if (hasMore) offset + tracks.size + 1 else offset + tracks.size
 
         emit(TrackPage(tracks, offset, hasMore, totalCount))
     }.flowOn(Dispatchers.IO)
@@ -293,7 +298,10 @@ class MusicRepository(private val context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val queryArgs = android.os.Bundle().apply {
                 putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
-                putString(android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS, MediaStore.Audio.Media.DATE_ADDED)
+                putStringArray(
+                    android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS,
+                    arrayOf(MediaStore.Audio.Media.DATE_ADDED)
+                )
                 putInt(
                     android.content.ContentResolver.QUERY_ARG_SORT_DIRECTION,
                     android.content.ContentResolver.QUERY_SORT_DIRECTION_DESCENDING
@@ -329,7 +337,12 @@ class MusicRepository(private val context: Context) {
         withContext(Dispatchers.IO) {
             LibraryFingerprint(
                 totalTracks = getTotalTrackCount(forceFresh = forceFresh),
-                latestDateAddedSec = getLatestDateAddedSec(forceFresh = forceFresh)
+                latestDateAddedSec = getLatestDateAddedSec(forceFresh = forceFresh),
+                mediaStoreVersion = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    MediaStore.getVersion(context, MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                } else {
+                    MediaStore.getVersion(context)
+                }
             )
         }
 
@@ -414,7 +427,10 @@ class MusicRepository(private val context: Context) {
             val queryArgs = android.os.Bundle().apply {
                 putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
                 putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs)
-                putString(android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS, sortConfig.sortColumn)
+                putStringArray(
+                    android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS,
+                    arrayOf(sortConfig.sortColumn)
+                )
                 putInt(android.content.ContentResolver.QUERY_ARG_SORT_DIRECTION, sortConfig.sortDirection)
             }
             context.contentResolver.query(collection, projection, queryArgs, null)?.use { cursor ->

@@ -3,9 +3,8 @@ package com.wapp.wearmusic.presentation.viewmodel
 import android.app.Application
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
-import android.os.SystemClock
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.*
@@ -25,7 +24,6 @@ import kotlinx.coroutines.guava.await
 class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         private const val PAGE_SIZE = 50
-        private const val FOREGROUND_LIBRARY_CHECK_INTERVAL_MS = 15_000L
     }
 
     private val repo = MusicRepository(app)
@@ -109,7 +107,6 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val mediaItemCache = mutableMapOf<String, MediaItem>()
     private var progressTrackingEnabled = false
     private var lastLibraryFingerprint: MusicRepository.LibraryFingerprint? = null
-    private var lastForegroundLibraryCheckAtMs: Long = 0L
 
     override fun onCleared() {
         progressUpdateJob?.cancel()
@@ -156,7 +153,8 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
                 _hasMoreTracks.value = page.hasMore
                 _paginationState.value = PaginationState.Idle
             } catch (e: Exception) {
-                _paginationState.value = PaginationState.Error(e.message ?: "Load failed")
+                // Keep paging retryable after transient query failures.
+                _paginationState.value = PaginationState.Idle
             }
         }
     }
@@ -180,14 +178,9 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onAppForeground() {
-        if (_tracks.value.isEmpty()) return
-        if (_paginationState.value != PaginationState.Idle) return
-
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastForegroundLibraryCheckAtMs < FOREGROUND_LIBRARY_CHECK_INTERVAL_MS) {
-            return
-        }
-        lastForegroundLibraryCheckAtMs = now
+        if (_paginationState.value is PaginationState.LoadingFirst ||
+            _paginationState.value is PaginationState.LoadingMore
+        ) return
 
         viewModelScope.launch {
             val currentFingerprint = repo.getLibraryFingerprint(forceFresh = true)
@@ -254,10 +247,6 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         if (trackList.isEmpty()) return
         viewModelScope.launch {
             val controller = controllerDeferred.await()
-            // Keep explicit service startup to preserve previous behavior.
-            getApplication<Application>().startForegroundService(
-                Intent(getApplication(), MusicPlaybackService::class.java)
-            )
             controller.setMediaItems(trackList.map { it.toCachedMediaItem() }, startIndex, 0)
             controller.prepare()
             if (sharedPreferences.getBoolean("auto_play_on_start", false)) {
@@ -283,7 +272,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
             val newMode = !controller.shuffleModeEnabled
             controller.shuffleModeEnabled = newMode
             _shuffleMode.value = newMode
-            sharedPreferences.edit().putBoolean("shuffle_mode", newMode).apply()
+            sharedPreferences.edit { putBoolean("shuffle_mode", newMode) }
         }
     }
 
@@ -301,7 +290,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
                 RepeatMode.ONE -> Player.REPEAT_MODE_ONE
             }
             _repeatMode.value = newMode
-            sharedPreferences.edit().putString("repeat_mode", newMode.name).apply()
+            sharedPreferences.edit { putString("repeat_mode", newMode.name) }
         }
     }
 
@@ -387,7 +376,8 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         try {
             _paginationState.value = PaginationState.LoadingFirst
             val page = repo.getTracksPage(0, PAGE_SIZE, sortBy).first()
-            lastLibraryFingerprint = repo.getLibraryFingerprint(forceFresh = false)
+            // Establish a non-stale baseline used by onAppForeground change detection.
+            lastLibraryFingerprint = repo.getLibraryFingerprint(forceFresh = true)
             _tracks.value = page.tracks
             _currentPage.value = 0
             _hasMoreTracks.value = page.hasMore

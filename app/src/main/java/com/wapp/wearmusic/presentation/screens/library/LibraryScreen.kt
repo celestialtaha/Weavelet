@@ -1,5 +1,6 @@
 package com.wapp.wearmusic.presentation.screens.library
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,6 +21,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -53,6 +55,8 @@ import com.wapp.wearmusic.presentation.screens.ErrorScreen
 import com.wapp.wearmusic.presentation.screens.LoadingScreen
 import com.wapp.wearmusic.presentation.screens.EmptyLibraryScreen
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 private enum class LibraryMode { TRACKS, ARTISTS }
 
@@ -149,23 +153,27 @@ fun LibraryScreen(
         }
     }
 
-    // 5) Auto-load more when scrolling near the end
-    LaunchedEffect(layoutInfo, hasMoreTracks, paginationState, mode, selectedArtistId) {
-        if (mode != LibraryMode.TRACKS || selectedArtistId >= 0) return@LaunchedEffect
-        if (layoutInfo.visibleItemsInfo.isNotEmpty() &&
-            paginationState is PaginationState.Idle &&
-            hasMoreTracks) {
-                val lastVisibleItem = layoutInfo.visibleItemsInfo.last()
-                val loadThreshold = 5 // Load more when 5 items from end
-
-                if (lastVisibleItem.index >= tracks.size - loadThreshold) {
-                    // Add small delay to prevent multiple rapid calls
+    // 5) Auto-load more when nearing the end of the TRACKS list
+    LaunchedEffect(listState, mode, selectedArtistId, query) {
+        if (mode != LibraryMode.TRACKS || selectedArtistId >= 0 || query.isNotBlank()) return@LaunchedEffect
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+            lastVisible to info.totalItemsCount
+        }
+            .map { (lastVisible, totalItems) ->
+                totalItems > 0 && lastVisible >= totalItems - 4
+            }
+            .distinctUntilChanged()
+            .collect { nearEnd ->
+                if (!nearEnd) return@collect
+                if (viewModel.paginationState.value is PaginationState.Idle && viewModel.hasMoreTracks.value) {
                     delay(100)
-                    if (paginationState is PaginationState.Idle) {
+                    if (viewModel.paginationState.value is PaginationState.Idle && viewModel.hasMoreTracks.value) {
                         viewModel.loadMoreTracks()
                     }
                 }
-        }
+            }
     }
 
     ScreenScaffold(
@@ -467,34 +475,40 @@ private fun ModeChip(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val colors = if (selected) {
-        CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-        )
+    val backgroundColor = if (selected) {
+        MaterialTheme.colorScheme.primaryContainer
     } else {
-        CardDefaults.outlinedCardColors(
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        MaterialTheme.colorScheme.surfaceContainerLow
+    }
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val borderColor = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+    } else {
+        MaterialTheme.colorScheme.outlineVariant
     }
 
-    OutlinedCard(
-        onClick = onClick,
-        modifier = modifier,
-        colors = colors
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .border(width = 1.dp, color = borderColor, shape = CircleShape)
+            .background(backgroundColor)
+            .clickable(onClick = onClick)
+            .padding(
+                horizontal = if (compact) 8.dp else 10.dp,
+                vertical = if (compact) 2.dp else 3.dp
+            ),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = if (compact) 6.dp else 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1
-            )
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+            maxLines = 1
+        )
     }
 }
 
@@ -525,7 +539,11 @@ private fun ArtistItem(
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = stringResource(R.string.artist_track_count_format, artist.trackCount),
+                text = pluralStringResource(
+                    R.plurals.artist_track_count,
+                    artist.trackCount,
+                    artist.trackCount
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

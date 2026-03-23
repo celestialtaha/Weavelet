@@ -1,23 +1,14 @@
 <resources>
     <string name="app_name">Weavelet</string>
-    <string name="hello_world">Hello, %1$s!</string>
     
     <!-- Music Player Strings -->
     <string name="music_library">Music Library</string>
     <string name="no_music_found">No music files found</string>
     <string name="error_loading_music">Error loading music files</string>
-    <string name="permission_required">Storage permission required</string>
     <string name="now_playing">Now Playing</string>
-    <string name="unknown_artist">Unknown Artist</string>
-    <string name="unknown_album">Unknown Album</string>
-    <string name="nothing_playing">Nothing playing</string>
     <string name="no_track_selected">No Track Selected</string>
     
     <!-- Playback Controls -->
-    <string name="play">Play</string>
-    <string name="pause">Pause</string>
-    <string name="next">Next</string>
-    <string name="previous">Previous</string>
     <string name="album_art_for">Album art for %1$s</string>
     
     <!-- Tile and Complication -->
@@ -38,8 +29,6 @@
     <string name="need_storage_permission">
     Storage permission is required to load your music</string>
     <string name="empty_library">No tracks on your watch</string>
-    <string name="search">Search</string>
-    <string name="search_hint">Search…</string>
     <string name="search_tracks_hint">Search tracks…</string>
     <string name="search_artists_hint">Search artists…</string>
     <string name="search_artist_tracks_hint">Search artist tracks…</string>
@@ -50,11 +39,12 @@
     <string name="no_artists_found">No artists found</string>
     <string name="no_artists_available">No artists available</string>
     <string name="no_tracks_for_artist">No tracks for this artist</string>
-    <string name="artist_track_count_format">%1$d tracks</string>
+    <plurals name="artist_track_count">
+        <item quantity="one">%1$d track</item>
+        <item quantity="other">%1$d tracks</item>
+    </plurals>
     
     <!-- Home Screen -->
-    <string name="home">Home</string>
-    
     <!-- About Screen -->
     <string name="about">About</string>
     <string name="about_description">A Wear OS music player that lets you listen to music stored on your watch.</string>
