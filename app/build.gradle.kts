@@ -14,8 +14,8 @@ extensions.configure<ApplicationExtension> {
         applicationId = "com.wapp.wearmusic"
         minSdk = 29
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.1.8"
+        versionCode = 6
+        versionName = "1.2.0"
     }
 
     buildTypes {
