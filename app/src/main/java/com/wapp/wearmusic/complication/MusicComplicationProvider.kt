@@ -64,11 +64,7 @@ class MusicComplicationProvider : SuspendingComplicationDataSourceService() {
     
     private suspend fun createShortTextComplicationData(request: ComplicationRequest): ComplicationData {
         val title = currentTrackTitle.first() ?: getString(R.string.app_name)
-        val icon = if (isPlaying.first()) {
-            R.drawable.ic_notification // Use the music note icon
-        } else {
-            R.drawable.ic_music_note
-        }
+        val icon = R.drawable.ic_music_note
 
         val tapIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(

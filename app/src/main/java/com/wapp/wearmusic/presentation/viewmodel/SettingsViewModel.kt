@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.ComponentName
 import android.content.Context
 import android.util.Log
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
@@ -50,15 +51,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      */
     private fun saveSettings(settings: Settings) {
         viewModelScope.launch {
-            sharedPreferences.edit()
-                .putBoolean(KEY_AUTO_PLAY, settings.autoPlayOnStart)
-                .putBoolean(KEY_SHOW_ALBUM_ART, settings.showAlbumArt)
-                .putBoolean(KEY_ENABLE_COMPLICATION, settings.enableComplication)
-                .putString(KEY_SORT_BY, settings.sortBy)
-                .putBoolean(KEY_SHUFFLE_MODE, settings.shuffleMode)
-                .putString(KEY_REPEAT_MODE, settings.repeatMode.name)
-                .putBoolean(KEY_HAPTIC_FEEDBACK, settings.hapticFeedback)
-                .apply()
+            sharedPreferences.edit {
+                putBoolean(KEY_AUTO_PLAY, settings.autoPlayOnStart)
+                putBoolean(KEY_SHOW_ALBUM_ART, settings.showAlbumArt)
+                putBoolean(KEY_ENABLE_COMPLICATION, settings.enableComplication)
+                putString(KEY_SORT_BY, settings.sortBy)
+                putBoolean(KEY_SHUFFLE_MODE, settings.shuffleMode)
+                putString(KEY_REPEAT_MODE, settings.repeatMode.name)
+                putBoolean(KEY_HAPTIC_FEEDBACK, settings.hapticFeedback)
+            }
         }
     }
     
