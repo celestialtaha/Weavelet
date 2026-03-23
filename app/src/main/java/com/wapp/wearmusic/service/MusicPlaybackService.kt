@@ -55,7 +55,6 @@ class MusicPlaybackService : MediaSessionService() {
                 addListener(playerListener)
             }
 
-        player.addListener(playerListener)
         // No setForegroundServiceBehavior() – removed from public API
         session = MediaSession.Builder(this, player).build()
     }
