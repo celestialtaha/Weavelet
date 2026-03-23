@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.*
@@ -23,6 +24,7 @@ import kotlinx.coroutines.guava.await
 class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         private const val PAGE_SIZE = 50
+        private const val FOREGROUND_LIBRARY_CHECK_INTERVAL_MS = 15_000L
     }
 
     private val repo = MusicRepository(app)
@@ -95,6 +97,8 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val mediaItemCache = mutableMapOf<String, MediaItem>()
     private var progressTrackingEnabled = false
+    private var lastLibraryFingerprint: MusicRepository.LibraryFingerprint? = null
+    private var lastForegroundLibraryCheckAtMs: Long = 0L
 
     override fun onCleared() {
         progressUpdateJob?.cancel()
@@ -109,13 +113,16 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadTracks(forceRefresh: Boolean = false) {
         val sortBy = sharedPreferences.getString("sort_by", "title") ?: "title"
-        if (!forceRefresh && _paginationState.value != PaginationState.Idle) {
+        if (_paginationState.value != PaginationState.Idle) {
             return
         }
         if (!forceRefresh && _tracks.value.isNotEmpty() && loadedSortBy == sortBy) {
             return
         }
         viewModelScope.launch {
+            if (forceRefresh) {
+                repo.clearCache()
+            }
             loadFirstPage(sortBy)
         }
     }
@@ -150,6 +157,30 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
             repo.refreshLibraryInBackground()
             val sortBy = sharedPreferences.getString("sort_by", "title") ?: "title"
             loadFirstPage(sortBy)
+        }
+    }
+
+    fun onAppForeground() {
+        if (_tracks.value.isEmpty()) return
+        if (_paginationState.value != PaginationState.Idle) return
+
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastForegroundLibraryCheckAtMs < FOREGROUND_LIBRARY_CHECK_INTERVAL_MS) {
+            return
+        }
+        lastForegroundLibraryCheckAtMs = now
+
+        viewModelScope.launch {
+            val currentFingerprint = repo.getLibraryFingerprint(forceFresh = true)
+            val knownFingerprint = lastLibraryFingerprint
+
+            if (knownFingerprint != null && knownFingerprint != currentFingerprint) {
+                repo.clearCache()
+                val sortBy = sharedPreferences.getString("sort_by", "title") ?: "title"
+                loadFirstPage(sortBy)
+            } else if (knownFingerprint == null) {
+                lastLibraryFingerprint = currentFingerprint
+            }
         }
     }
 
@@ -290,6 +321,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         try {
             _paginationState.value = PaginationState.LoadingFirst
             val page = repo.getTracksPage(0, PAGE_SIZE, sortBy).first()
+            lastLibraryFingerprint = repo.getLibraryFingerprint(forceFresh = false)
             _tracks.value = page.tracks
             _currentPage.value = 0
             _hasMoreTracks.value = page.hasMore

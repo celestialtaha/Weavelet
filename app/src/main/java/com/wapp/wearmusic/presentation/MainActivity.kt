@@ -46,6 +46,13 @@ class MainActivity : ComponentActivity() {
         checkOrRequestPermission()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (hasMediaReadPermission()) {
+            viewModel.onAppForeground()
+        }
+    }
+
     /** Reads the saved flag once and pushes it to the complication provider. */
     private fun initialiseComplicationSwitch() {
         val prefs = getSharedPreferences("music_player_settings", MODE_PRIVATE)
@@ -55,18 +62,12 @@ class MainActivity : ComponentActivity() {
 
     /** Handles both ≥34 and <34 storage-read permissions. */
     private fun checkOrRequestPermission() {
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-            Manifest.permission.READ_MEDIA_AUDIO
-        else
-            Manifest.permission.READ_EXTERNAL_STORAGE
-
         when {
-            ContextCompat.checkSelfPermission(this, permission) ==
-                    PackageManager.PERMISSION_GRANTED          -> initializeApp()
+            hasMediaReadPermission() -> initializeApp()
 
-            shouldShowRequestPermissionRationale(permission)  -> showPermissionRationale()
+            shouldShowRequestPermissionRationale(getMediaReadPermission()) -> showPermissionRationale()
 
-            else                                             -> permissionLauncher.launch(permission)
+            else -> permissionLauncher.launch(getMediaReadPermission())
         }
     }
 
@@ -78,11 +79,20 @@ class MainActivity : ComponentActivity() {
 
     private fun showPermissionRationale() {
         toast(R.string.need_storage_permission)
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        permissionLauncher.launch(getMediaReadPermission())
+    }
+
+    private fun getMediaReadPermission(): String {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Manifest.permission.READ_MEDIA_AUDIO
-        else
+        } else {
             Manifest.permission.READ_EXTERNAL_STORAGE
-        permissionLauncher.launch(permission)
+        }
+    }
+
+    private fun hasMediaReadPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(this, getMediaReadPermission()) ==
+            PackageManager.PERMISSION_GRANTED
     }
 
     /** Tiny util to avoid Toast boilerplate. */

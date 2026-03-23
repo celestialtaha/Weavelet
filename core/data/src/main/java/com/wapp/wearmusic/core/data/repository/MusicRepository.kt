@@ -53,7 +53,14 @@ class MusicRepository(private val context: Context) {
     // Track count cache
     private var cachedTrackCount: Int? = null
     private var trackCountCacheTime: Long = 0
+    private var cachedLatestDateAddedSec: Long? = null
+    private var latestDateAddedCacheTime: Long = 0
     private val LOAD_TIMEOUT = 10000L
+
+    data class LibraryFingerprint(
+        val totalTracks: Int,
+        val latestDateAddedSec: Long
+    )
 
     /**
      * Get all music tracks from the device with pagination
@@ -243,9 +250,9 @@ class MusicRepository(private val context: Context) {
         return inSampleSize.coerceAtLeast(1)
     }
 
-    private fun getTotalTrackCount(): Int {
+    private fun getTotalTrackCount(forceFresh: Boolean = false): Int {
         val currentTime = System.currentTimeMillis()
-        if (cachedTrackCount != null && currentTime - trackCountCacheTime < CACHE_EXPIRY_MS) {
+        if (!forceFresh && cachedTrackCount != null && currentTime - trackCountCacheTime < CACHE_EXPIRY_MS) {
             return cachedTrackCount!!
         }
         val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
@@ -258,6 +265,62 @@ class MusicRepository(private val context: Context) {
         return 0
     }
 
+    private fun getLatestDateAddedSec(forceFresh: Boolean = false): Long {
+        val currentTime = System.currentTimeMillis()
+        if (!forceFresh &&
+            cachedLatestDateAddedSec != null &&
+            currentTime - latestDateAddedCacheTime < CACHE_EXPIRY_MS
+        ) {
+            return cachedLatestDateAddedSec!!
+        }
+
+        val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        val projection = arrayOf(MediaStore.Audio.Media.DATE_ADDED)
+        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val queryArgs = android.os.Bundle().apply {
+                putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                putString(android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS, MediaStore.Audio.Media.DATE_ADDED)
+                putInt(
+                    android.content.ContentResolver.QUERY_ARG_SORT_DIRECTION,
+                    android.content.ContentResolver.QUERY_SORT_DIRECTION_DESCENDING
+                )
+                putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, 1)
+            }
+            context.contentResolver.query(collection, projection, queryArgs, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val latest = cursor.getLong(0)
+                    cachedLatestDateAddedSec = latest
+                    latestDateAddedCacheTime = currentTime
+                    return latest
+                }
+            }
+        } else {
+            val sortOrder = "${MediaStore.Audio.Media.DATE_ADDED} DESC LIMIT 1"
+            context.contentResolver.query(collection, projection, selection, null, sortOrder)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val latest = cursor.getLong(0)
+                    cachedLatestDateAddedSec = latest
+                    latestDateAddedCacheTime = currentTime
+                    return latest
+                }
+            }
+        }
+
+        cachedLatestDateAddedSec = 0L
+        latestDateAddedCacheTime = currentTime
+        return 0L
+    }
+
+    suspend fun getLibraryFingerprint(forceFresh: Boolean = false): LibraryFingerprint =
+        withContext(Dispatchers.IO) {
+            LibraryFingerprint(
+                totalTracks = getTotalTrackCount(forceFresh = forceFresh),
+                latestDateAddedSec = getLatestDateAddedSec(forceFresh = forceFresh)
+            )
+        }
+
     private fun getCachedTrack(trackId: String): CachedTrackMetadata? = metadataCache.get(trackId)
     private fun cacheTrack(track: Track) {
         metadataCache.put(track.id, CachedTrackMetadata(track, System.currentTimeMillis()))
@@ -267,6 +330,7 @@ class MusicRepository(private val context: Context) {
         metadataCache.evictAll()
         albumArtCache.evictAll()
         cachedTrackCount = null
+        cachedLatestDateAddedSec = null
     }
 
     suspend fun refreshLibraryInBackground() = withContext(Dispatchers.IO) {
