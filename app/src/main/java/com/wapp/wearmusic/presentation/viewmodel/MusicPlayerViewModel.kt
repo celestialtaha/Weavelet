@@ -1,9 +1,13 @@
 package com.wapp.wearmusic.presentation.viewmodel
 
 import android.app.Application
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
+import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -17,6 +21,7 @@ import com.wapp.wearmusic.core.data.model.RepeatMode
 import com.wapp.wearmusic.core.data.model.Track
 import com.wapp.wearmusic.core.data.repository.MusicRepository
 import com.wapp.wearmusic.core.player.MusicPlaybackService
+import com.wapp.wearmusic.service.LibraryScanService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.guava.await
@@ -24,6 +29,7 @@ import kotlinx.coroutines.guava.await
 class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         private const val PAGE_SIZE = 50
+        private const val LIBRARY_SCAN_COOLDOWN_MS = 2 * 60 * 1000L
     }
 
     private val repo = MusicRepository(app)
@@ -69,6 +75,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     private var controller: MediaController? = null
 
     init {
+        registerLibraryScanReceiver()
         viewModelScope.launch {
             controller = controllerDeferred.await()
             _shuffleMode.value = controller?.shuffleModeEnabled ?: false
@@ -107,9 +114,19 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val mediaItemCache = mutableMapOf<String, MediaItem>()
     private var progressTrackingEnabled = false
     private var lastLibraryFingerprint: MusicRepository.LibraryFingerprint? = null
+    private var lastLibraryScanRequestMs = 0L
+    private var libraryScanReceiverRegistered = false
+    private val libraryScanReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == LibraryScanService.ACTION_SCAN_COMPLETED) {
+                onLibraryScanCompleted()
+            }
+        }
+    }
 
     override fun onCleared() {
         progressUpdateJob?.cancel()
+        unregisterLibraryScanReceiver()
         controller?.let {
             it.removeListener(playerListener)
             it.release()
@@ -183,6 +200,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         ) return
 
         viewModelScope.launch {
+            maybeRequestLibraryScan()
             val currentFingerprint = repo.getLibraryFingerprint(forceFresh = true)
             val knownFingerprint = lastLibraryFingerprint
 
@@ -195,6 +213,59 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
                 val sortBy = sharedPreferences.getString("sort_by", "title") ?: "title"
                 loadFirstPage(sortBy)
             } else if (knownFingerprint == null) {
+                lastLibraryFingerprint = currentFingerprint
+            }
+        }
+    }
+
+    private fun registerLibraryScanReceiver() {
+        if (libraryScanReceiverRegistered) return
+        val app = getApplication<Application>()
+        val filter = IntentFilter(LibraryScanService.ACTION_SCAN_COMPLETED)
+        ContextCompat.registerReceiver(
+            app,
+            libraryScanReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        libraryScanReceiverRegistered = true
+    }
+
+    private fun unregisterLibraryScanReceiver() {
+        if (!libraryScanReceiverRegistered) return
+        val app = getApplication<Application>()
+        runCatching { app.unregisterReceiver(libraryScanReceiver) }
+        libraryScanReceiverRegistered = false
+    }
+
+    private fun maybeRequestLibraryScan() {
+        val now = System.currentTimeMillis()
+        if (now - lastLibraryScanRequestMs < LIBRARY_SCAN_COOLDOWN_MS) return
+        lastLibraryScanRequestMs = now
+        val app = getApplication<Application>()
+        val scanIntent = Intent(app, LibraryScanService::class.java).apply {
+            action = LibraryScanService.ACTION_SCAN_LIBRARY
+        }
+        runCatching { app.startService(scanIntent) }
+    }
+
+    private fun onLibraryScanCompleted() {
+        if (_paginationState.value is PaginationState.LoadingFirst ||
+            _paginationState.value is PaginationState.LoadingMore
+        ) return
+
+        viewModelScope.launch {
+            val currentFingerprint = repo.getLibraryFingerprint(forceFresh = true)
+            val knownFingerprint = lastLibraryFingerprint
+            if (knownFingerprint == null || knownFingerprint != currentFingerprint) {
+                repo.clearCache()
+                loadedArtists = false
+                loadedArtistId = null
+                _artists.value = emptyList()
+                _selectedArtistTracks.value = emptyList()
+                val sortBy = sharedPreferences.getString("sort_by", "title") ?: "title"
+                loadFirstPage(sortBy)
+            } else {
                 lastLibraryFingerprint = currentFingerprint
             }
         }

@@ -33,9 +33,15 @@ class LibraryScanService : Service() {
         when (intent?.action) {
             ACTION_SCAN_LIBRARY -> {
                 serviceScope.launch {
-                    triggerMediaStoreScan()
-                    musicRepository.refreshLibraryInBackground()
-                    stopSelf()
+                    try {
+                        triggerMediaStoreScan()
+                        musicRepository.refreshLibraryInBackground()
+                    } finally {
+                        sendBroadcast(
+                            Intent(ACTION_SCAN_COMPLETED).setPackage(packageName)
+                        )
+                        stopSelf()
+                    }
                 }
             }
         }
@@ -90,5 +96,6 @@ class LibraryScanService : Service() {
     
     companion object {
         const val ACTION_SCAN_LIBRARY = "com.wapp.wearmusic.SCAN_LIBRARY"
+        const val ACTION_SCAN_COMPLETED = "com.wapp.wearmusic.SCAN_COMPLETED"
     }
 }
