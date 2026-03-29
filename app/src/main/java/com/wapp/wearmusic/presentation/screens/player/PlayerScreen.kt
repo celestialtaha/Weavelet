@@ -377,7 +377,7 @@ private fun PlayerBackdrop(
         if (hasArt) {
             AsyncImage(
                 model = ImageRequest.Builder(ctx).data(track.albumArtUri).crossfade(true).build(),
-                contentDescription = "Album art",
+                contentDescription = stringResource(R.string.album_art),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
@@ -457,16 +457,14 @@ private fun TrackInfo(track: Track, compact: Boolean) {
         maxLines   = 1,
         overflow   = TextOverflow.Ellipsis
     )
-    if (!compact) {
-        Text(
-            text       = track.artist,
-            style      = MaterialTheme.typography.bodySmall,
-            textAlign  = TextAlign.Center,
-            maxLines   = 1,
-            overflow   = TextOverflow.Ellipsis,
-            color     = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    Text(
+        text       = track.artist,
+        style      = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodySmall,
+        textAlign  = TextAlign.Center,
+        maxLines   = 1,
+        overflow   = TextOverflow.Ellipsis,
+        color      = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
@@ -498,7 +496,7 @@ private fun ModeButtons(
         ) {
             Icon(
                 Icons.Default.Shuffle,
-                contentDescription = "Shuffle",
+                contentDescription = stringResource(R.string.shuffle),
                 modifier = Modifier.size(iconSize)
             )
         }
@@ -528,7 +526,7 @@ private fun ModeButtons(
         ) {
             Icon(
                 if (repeatMode == RepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
-                contentDescription = "Repeat",
+                contentDescription = stringResource(R.string.repeat),
                 modifier = Modifier.size(iconSize)
             )
         }
@@ -552,7 +550,7 @@ private fun TransportControls(
             }
             onPrev()
         }) {
-            Icon(Icons.Default.SkipPrevious, contentDescription = "Prev")
+            Icon(Icons.Default.SkipPrevious, contentDescription = stringResource(R.string.previous_track))
         }
         FilledTonalIconButton(onClick = {
             if (hapticEnabled) {
@@ -562,7 +560,11 @@ private fun TransportControls(
         }) {
             Icon(
                 imageVector = if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = if (playing) "Pause" else "Play"
+                contentDescription = if (playing) {
+                    stringResource(R.string.pause)
+                } else {
+                    stringResource(R.string.play)
+                }
             )
         }
         IconButton(onClick = {
@@ -571,7 +573,7 @@ private fun TransportControls(
             }
             onNext()
         }) {
-            Icon(Icons.Default.SkipNext, contentDescription = "Next")
+            Icon(Icons.Default.SkipNext, contentDescription = stringResource(R.string.next_track))
         }
     }
 }

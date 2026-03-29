@@ -57,6 +57,7 @@ import com.wapp.wearmusic.presentation.screens.EmptyLibraryScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.collectLatest
 
 private enum class LibraryMode { TRACKS, ARTISTS }
 
@@ -65,7 +66,8 @@ fun LibraryScreen(
     viewModel: MusicPlayerViewModel,
     settingsViewModel: SettingsViewModel,
     onTrackClick: (Int) -> Unit,
-    onPlayArtistTrack: (List<Track>, Int) -> Unit
+    onPlayArtistTrack: (List<Track>, Int) -> Unit,
+    onBackClick: () -> Unit = {}
 ) {
     // 1) Observe ViewModel state
     val tracks by viewModel.tracks.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -78,9 +80,11 @@ fun LibraryScreen(
     val artistsLoading by viewModel.artistsLoading.collectAsStateWithLifecycle()
     val selectedArtistTracks by viewModel.selectedArtistTracks.collectAsStateWithLifecycle(initialValue = emptyList())
     val selectedArtistTracksLoading by viewModel.selectedArtistTracksLoading.collectAsStateWithLifecycle()
+    val trackSearchResults by viewModel.trackSearchResults.collectAsStateWithLifecycle(initialValue = emptyList())
+    val trackSearchLoading by viewModel.trackSearchLoading.collectAsStateWithLifecycle()
+    val libraryRefreshing by viewModel.libraryRefreshing.collectAsStateWithLifecycle()
 
     val listState = rememberScalingLazyListState()
-    val layoutInfo by remember { derivedStateOf { listState.layoutInfo } }
 
     // 2) Observe settings (for showAlbumArt)
     val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
@@ -94,6 +98,7 @@ fun LibraryScreen(
     var mode by rememberSaveable { mutableStateOf(LibraryMode.TRACKS) }
     var selectedArtistId by rememberSaveable { mutableLongStateOf(-1L) }
     var selectedArtistName by rememberSaveable { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(settings.sortBy) {
         viewModel.loadTracks()
@@ -110,25 +115,38 @@ fun LibraryScreen(
     }
 
     LaunchedEffect(mode, selectedArtistId) {
+        viewModel.setLibraryArtistDetailActive(mode == LibraryMode.ARTISTS && selectedArtistId >= 0)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.setLibraryArtistDetailActive(false)
+        }
+    }
+
+    LaunchedEffect(viewModel) {
+        viewModel.libraryInternalBackRequests.collectLatest {
+            if (mode == LibraryMode.ARTISTS && selectedArtistId >= 0) {
+                selectedArtistId = -1L
+                selectedArtistName = ""
+                query = ""
+                viewModel.clearSelectedArtistTracks()
+            }
+        }
+    }
+
+    LaunchedEffect(mode, selectedArtistId) {
         if (mode == LibraryMode.ARTISTS && selectedArtistId >= 0) {
             viewModel.loadTracksForArtist(selectedArtistId)
         }
     }
 
-    // 3) Search query
-    var query by rememberSaveable { mutableStateOf("") }
-
-    // 4) Filtered results
-    val trackResults: List<Track> = remember(tracks, query) {
+    // 3) Filtered results
+    val trackResults: List<Track> = remember(tracks, trackSearchResults, query) {
         if (query.isBlank()) {
             tracks
         } else {
-            val q = query.trim()
-            tracks.filter {
-                it.title.contains(q, ignoreCase = true) ||
-                        it.artist.contains(q, ignoreCase = true) ||
-                        it.album.contains(q, ignoreCase = true)
-            }
+            trackSearchResults
         }
     }
 
@@ -150,6 +168,21 @@ fun LibraryScreen(
                 it.title.contains(q, ignoreCase = true) ||
                     it.album.contains(q, ignoreCase = true)
             }
+        }
+    }
+
+    LaunchedEffect(mode, selectedArtistId, query, settings.sortBy) {
+        if (mode == LibraryMode.TRACKS && selectedArtistId < 0) {
+            val trimmed = query.trim()
+            if (trimmed.isBlank()) {
+                viewModel.clearTrackSearch()
+            } else {
+                // Debounce search to reduce query churn while typing.
+                delay(180)
+                viewModel.searchTracks(trimmed)
+            }
+        } else {
+            viewModel.clearTrackSearch()
         }
     }
 
@@ -186,8 +219,17 @@ fun LibraryScreen(
             // 6) Show loading/empty/error if needed
             when (uiState) {
                 is MusicPlayerUiState.Loading -> LoadingScreen()
-                is MusicPlayerUiState.Empty -> EmptyLibraryScreen()
-                is MusicPlayerUiState.Error -> ErrorScreen((uiState as MusicPlayerUiState.Error).message)
+                is MusicPlayerUiState.Empty -> EmptyLibraryScreen(
+                    onBackClick = onBackClick,
+                    onRefreshClick = { viewModel.refreshLibrary() },
+                    isRefreshing = libraryRefreshing
+                )
+                is MusicPlayerUiState.Error -> ErrorScreen(
+                    message = (uiState as MusicPlayerUiState.Error).message,
+                    onBackClick = onBackClick,
+                    onRetryClick = { viewModel.refreshLibrary() },
+                    isRetrying = libraryRefreshing || paginationState is PaginationState.LoadingFirst
+                )
                 MusicPlayerUiState.Success -> {
                     // 7) Main track list
                     ScalingLazyColumn(
@@ -234,6 +276,15 @@ fun LibraryScreen(
                         }
 
                         if (mode == LibraryMode.TRACKS) {
+                            if (query.isNotBlank() && trackSearchLoading) {
+                                item {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp)
+                                    )
+                                }
+                            }
                             if (trackResults.isEmpty()) {
                                 item {
                                     Text(
@@ -260,8 +311,13 @@ fun LibraryScreen(
                                         compact = compact,
                                         itemWidthFraction = trackItemWidthFraction,
                                         onClick = {
-                                            val index = tracks.indexOfFirst { it.id == track.id }
-                                            if (index >= 0) onTrackClick(index)
+                                            if (query.isBlank()) {
+                                                val index = tracks.indexOfFirst { it.id == track.id }
+                                                if (index >= 0) onTrackClick(index)
+                                            } else {
+                                                val index = trackResults.indexOfFirst { it.id == track.id }
+                                                if (index >= 0) viewModel.playTrackList(trackResults, index)
+                                            }
                                         }
                                     )
                                 }

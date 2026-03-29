@@ -144,6 +144,67 @@ class MusicRepository(private val context: Context) {
         emit(TrackPage(tracks, offset, hasMore, totalCount))
     }.flowOn(Dispatchers.IO)
 
+    fun searchTracks(
+        query: String,
+        sortBy: String = SORT_TITLE
+    ): Flow<List<Track>> = flow {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) {
+            emit(emptyList())
+            return@flow
+        }
+
+        val tracks = mutableListOf<Track>()
+        val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        val sortConfig = getSortConfig(sortBy)
+
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.DURATION
+        )
+        val selection = buildString {
+            append("${MediaStore.Audio.Media.IS_MUSIC} != 0")
+            append(" AND (")
+            append("${MediaStore.Audio.Media.TITLE} LIKE ?")
+            append(" OR ${MediaStore.Audio.Media.ARTIST} LIKE ?")
+            append(" OR ${MediaStore.Audio.Media.ALBUM} LIKE ?")
+            append(")")
+        }
+        val likeQuery = "%$trimmed%"
+        val selectionArgs = arrayOf(likeQuery, likeQuery, likeQuery)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val queryArgs = android.os.Bundle().apply {
+                putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs)
+                putStringArray(
+                    android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS,
+                    arrayOf(sortConfig.sortColumn)
+                )
+                putInt(android.content.ContentResolver.QUERY_ARG_SORT_DIRECTION, sortConfig.sortDirection)
+            }
+            context.contentResolver.query(collection, projection, queryArgs, null)?.use { cursor ->
+                processCursor(cursor, tracks)
+            }
+        } else {
+            context.contentResolver.query(
+                collection,
+                projection,
+                selection,
+                selectionArgs,
+                sortConfig.legacySortOrder
+            )?.use { cursor ->
+                processCursor(cursor, tracks)
+            }
+        }
+
+        emit(tracks)
+    }.flowOn(Dispatchers.IO)
+
     private data class SortConfig(
         val sortColumn: String,
         val sortDirection: Int,

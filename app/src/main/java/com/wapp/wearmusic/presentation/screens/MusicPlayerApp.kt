@@ -35,10 +35,13 @@ sealed class Screen {
 fun MusicPlayerApp() {
     val viewModel: MusicPlayerViewModel = viewModel()
     val settingsViewModel: SettingsViewModel = viewModel()
+    val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
 
     // Single source of truth for navigation
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
     val swipeState = rememberSwipeToDismissBoxState()
+    val libraryArtistDetailActive by viewModel.libraryArtistDetailActive.collectAsStateWithLifecycle()
+    val hasNowPlaying = playbackState.currentTrack != null
 
     // Trigger initial track load once.
     LaunchedEffect(Unit) {
@@ -53,7 +56,14 @@ fun MusicPlayerApp() {
                 Screen.Settings -> Screen.Home
                 Screen.About -> Screen.Home
                 Screen.Player -> Screen.Library
-                Screen.Library -> Screen.Home
+                Screen.Library -> {
+                    if (libraryArtistDetailActive) {
+                        viewModel.requestLibraryInternalBack()
+                        Screen.Library
+                    } else {
+                        Screen.Home
+                    }
+                }
                 else -> Screen.Home
             }
         }
@@ -69,6 +79,8 @@ fun MusicPlayerApp() {
             // Background shows previous screen
             when (currentScreen) {
                 Screen.Library -> HomeScreen(
+                    showNowPlaying = hasNowPlaying,
+                    onNowPlayingClick = { /* Handled in foreground */ },
                     onLibraryClick = { /* Handled in foreground */ },
                     onSettingsClick = { /* Handled in foreground */ },
                     onAboutClick = { /* Handled in foreground */ }
@@ -83,9 +95,12 @@ fun MusicPlayerApp() {
                     onPlayArtistTrack = { tracks, index ->
                         viewModel.playTrackList(tracks, index)
                         currentScreen = Screen.Player
-                    }
+                    },
+                    onBackClick = {}
                 )
                 Screen.Settings, Screen.About -> HomeScreen(
+                    showNowPlaying = hasNowPlaying,
+                    onNowPlayingClick = { /* Handled in foreground */ },
                     onLibraryClick = { /* Handled in foreground */ },
                     onSettingsClick = { /* Handled in foreground */ },
                     onAboutClick = { /* Handled in foreground */ }
@@ -96,6 +111,8 @@ fun MusicPlayerApp() {
             // Foreground shows current screen
             when (currentScreen) {
                 Screen.Home -> HomeScreen(
+                    showNowPlaying = hasNowPlaying,
+                    onNowPlayingClick = { currentScreen = Screen.Player },
                     onLibraryClick = { currentScreen = Screen.Library },
                     onSettingsClick = { currentScreen = Screen.Settings },
                     onAboutClick = { currentScreen = Screen.About }
@@ -110,7 +127,8 @@ fun MusicPlayerApp() {
                     onPlayArtistTrack = { tracks, index ->
                         viewModel.playTrackList(tracks, index)
                         currentScreen = Screen.Player
-                    }
+                    },
+                    onBackClick = { currentScreen = Screen.Home }
                 )
                 Screen.Player -> PlayerScreen(
                     viewModel = viewModel,
@@ -133,19 +151,31 @@ private fun LibraryContent(
     viewModel: MusicPlayerViewModel,
     settingsViewModel: SettingsViewModel,
     onTrackClick: (Int) -> Unit,
-    onPlayArtistTrack: (List<Track>, Int) -> Unit
+    onPlayArtistTrack: (List<Track>, Int) -> Unit,
+    onBackClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val libraryRefreshing by viewModel.libraryRefreshing.collectAsStateWithLifecycle()
 
     when (uiState) {
         MusicPlayerUiState.Loading -> LoadingScreen()
-        MusicPlayerUiState.Empty -> EmptyLibraryScreen()
-        is MusicPlayerUiState.Error -> ErrorScreen((uiState as MusicPlayerUiState.Error).message)
+        MusicPlayerUiState.Empty -> EmptyLibraryScreen(
+            onBackClick = onBackClick,
+            onRefreshClick = { viewModel.refreshLibrary() },
+            isRefreshing = libraryRefreshing
+        )
+        is MusicPlayerUiState.Error -> ErrorScreen(
+            message = (uiState as MusicPlayerUiState.Error).message,
+            onBackClick = onBackClick,
+            onRetryClick = { viewModel.refreshLibrary() },
+            isRetrying = libraryRefreshing
+        )
         MusicPlayerUiState.Success -> LibraryScreen(
             viewModel = viewModel,
             settingsViewModel = settingsViewModel,
             onTrackClick = onTrackClick,
-            onPlayArtistTrack = onPlayArtistTrack
+            onPlayArtistTrack = onPlayArtistTrack,
+            onBackClick = onBackClick
         )
     }
 }

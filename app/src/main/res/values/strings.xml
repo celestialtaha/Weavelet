@@ -5,8 +5,11 @@
     <string name="music_library">Music Library</string>
     <string name="no_music_found">No music files found</string>
     <string name="error_loading_music">Error loading music files</string>
+    <string name="loading_music">Loading music…</string>
     <string name="now_playing">Now Playing</string>
     <string name="no_track_selected">No Track Selected</string>
+    <string name="retry">Retry</string>
+    <string name="refreshing">Refreshing…</string>
     
     <!-- Playback Controls -->
     <string name="album_art_for">Album art for %1$s</string>
@@ -20,6 +23,7 @@
     <string name="auto_play_on_start">Auto-play on start</string>
     <string name="show_album_art">Show album art</string>
     <string name="enable_complication">Enable complication</string>
+    <string name="haptic_feedback">Haptic feedback</string>
     <string name="sort_by">Sort tracks by</string>
     <string name="sort_by_title">Title</string>
     <string name="sort_by_artist">Artist</string>
@@ -29,6 +33,10 @@
     <string name="need_storage_permission">
     Storage permission is required to load your music</string>
     <string name="empty_library">No tracks on your watch</string>
+    <string name="empty_library_title">Your library is empty</string>
+    <string name="empty_library_help">Add music to your watch, then refresh the library.</string>
+    <string name="refresh_library">Refresh</string>
+    <string name="swipe_back_hint">Swipe right to go back</string>
     <string name="search_tracks_hint">Search tracks…</string>
     <string name="search_artists_hint">Search artists…</string>
     <string name="search_artist_tracks_hint">Search artist tracks…</string>
@@ -56,4 +64,11 @@
 
     <!-- Tile: accessibility / talk-back description -->
     <string name="open_player_desc">Launch the Wear Music player</string>
+    <string name="album_art">Album art</string>
+    <string name="shuffle">Shuffle</string>
+    <string name="repeat">Repeat</string>
+    <string name="previous_track">Previous track</string>
+    <string name="next_track">Next track</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
 </resources>

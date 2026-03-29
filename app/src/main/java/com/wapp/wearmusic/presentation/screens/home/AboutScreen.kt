@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
@@ -26,9 +27,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
-import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.EdgeButton
+import androidx.wear.compose.material3.EdgeButtonSize
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
@@ -62,7 +65,7 @@ fun AboutScreen(
             }
         }.getOrNull()
     }
-    val versionName = packageInfo?.versionName ?: "?"
+    val versionName = packageInfo?.versionName ?: "Not Specified"
     val versionCode = packageInfo?.let { PackageInfoCompat.getLongVersionCode(it).toString() } ?: "?"
     val versionLabel = stringResource(
         R.string.version_info_format,
@@ -71,11 +74,20 @@ fun AboutScreen(
     )
 
     ScreenScaffold(
-        scrollState = listState
+        scrollState = listState,
+        edgeButton = {
+            EdgeButton(
+                onClick = onBackClick,
+                buttonSize = if (compact) EdgeButtonSize.ExtraSmall else EdgeButtonSize.Small
+            ) {
+                Text(stringResource(R.string.back))
+            }
+        }
     ) {
         ScalingLazyColumn(
             state = listState,
             contentPadding = it,
+            autoCentering = null,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = horizontalPadding),
@@ -152,16 +164,6 @@ fun AboutScreen(
                 )
             }
 
-            item {
-                Button(
-                    onClick = onBackClick,
-                    modifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .padding(top = 10.dp, bottom = 12.dp),
-                ) {
-                    Text(stringResource(R.string.back))
-                }
-            }
         }
     }
 }
@@ -185,4 +187,12 @@ private fun SurfaceInfo(
             color = MaterialTheme.colorScheme.onSurface
         )
     }
+}
+
+@Preview
+@Composable
+fun PreviewAboutScreen() {
+    AboutScreen(
+        onBackClick = { /* Do nothing */ }
+    )
 }

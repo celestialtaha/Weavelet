@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -15,6 +18,7 @@ import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
@@ -27,6 +31,8 @@ import com.wapp.wearmusic.R
  */
 @Composable
 fun HomeScreen(
+    showNowPlaying: Boolean,
+    onNowPlayingClick: () -> Unit,
     onLibraryClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onAboutClick: () -> Unit
@@ -57,6 +63,26 @@ fun HomeScreen(
                         style = MaterialTheme.typography.titleLarge,
                         textAlign = TextAlign.Center
                     )
+                }
+            }
+
+            if (showNowPlaying) {
+                item {
+                    Button(
+                        onClick = onNowPlayingClick,
+                        modifier = Modifier.fillMaxWidth(actionWidth),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(stringResource(R.string.now_playing))
+                    }
                 }
             }
 

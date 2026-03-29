@@ -16,7 +16,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
-import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.EdgeButton
+import androidx.wear.compose.material3.EdgeButtonSize
 import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.ListSubHeader
 import androidx.wear.compose.material3.RadioButton
@@ -40,11 +41,20 @@ fun SettingsScreen(
 
     ScreenScaffold(
         scrollState = listState,
+        edgeButton = {
+            EdgeButton(
+                onClick = onBackClick,
+                buttonSize = if (compact) EdgeButtonSize.ExtraSmall else EdgeButtonSize.Small
+            ) {
+                Text(stringResource(R.string.back))
+            }
+        }
     ) {
         ScalingLazyColumn(
             state = listState,
             modifier = Modifier.padding(horizontal = horizontalPadding),
             contentPadding = it,
+            autoCentering = null,
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -66,6 +76,13 @@ fun SettingsScreen(
                     label = stringResource(R.string.show_album_art),
                     checked = settings.showAlbumArt,
                     onCheckedChange = settingsViewModel::setShowAlbumArt
+                )
+            }
+            item {
+                SettingSwitchButton(
+                    label = stringResource(R.string.haptic_feedback),
+                    checked = settings.hapticFeedback,
+                    onCheckedChange = settingsViewModel::setHapticFeedback
                 )
             }
             item {
@@ -111,18 +128,6 @@ fun SettingsScreen(
                 )
             }
 
-            item {
-                Button(
-                    onClick = onBackClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp)
-                ) {
-                    Text(stringResource(R.string.back))
-                }
-            }
-
-            item { Spacer(Modifier.height(8.dp)) }
         }
     }
 }

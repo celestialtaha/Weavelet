@@ -46,6 +46,11 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val _artistsLoading = MutableStateFlow(false)
     private val _selectedArtistTracks = MutableStateFlow<List<Track>>(emptyList())
     private val _selectedArtistTracksLoading = MutableStateFlow(false)
+    private val _trackSearchResults = MutableStateFlow<List<Track>>(emptyList())
+    private val _trackSearchLoading = MutableStateFlow(false)
+    private val _libraryArtistDetailActive = MutableStateFlow(false)
+    private val _libraryInternalBackRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val _libraryRefreshing = MutableStateFlow(false)
     private var loadedSortBy: String? = null
     private var loadedArtists = false
     private var loadedArtistId: Long? = null
@@ -106,6 +111,11 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     val artistsLoading: StateFlow<Boolean> = _artistsLoading.asStateFlow()
     val selectedArtistTracks: StateFlow<List<Track>> = _selectedArtistTracks.asStateFlow()
     val selectedArtistTracksLoading: StateFlow<Boolean> = _selectedArtistTracksLoading.asStateFlow()
+    val trackSearchResults: StateFlow<List<Track>> = _trackSearchResults.asStateFlow()
+    val trackSearchLoading: StateFlow<Boolean> = _trackSearchLoading.asStateFlow()
+    val libraryArtistDetailActive: StateFlow<Boolean> = _libraryArtistDetailActive.asStateFlow()
+    val libraryInternalBackRequests: SharedFlow<Unit> = _libraryInternalBackRequests.asSharedFlow()
+    val libraryRefreshing: StateFlow<Boolean> = _libraryRefreshing.asStateFlow()
     val currentTrackId: StateFlow<String?> = _playbackState
         .map { it.currentTrack?.id }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -113,6 +123,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private val mediaItemCache = mutableMapOf<String, MediaItem>()
     private var progressTrackingEnabled = false
+    private var trackSearchJob: Job? = null
     private var lastLibraryFingerprint: MusicRepository.LibraryFingerprint? = null
     private var lastLibraryScanRequestMs = 0L
     private var libraryScanReceiverRegistered = false
@@ -126,6 +137,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         progressUpdateJob?.cancel()
+        trackSearchJob?.cancel()
         unregisterLibraryScanReceiver()
         controller?.let {
             it.removeListener(playerListener)
@@ -151,6 +163,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
                 loadedArtistId = null
                 _artists.value = emptyList()
                 _selectedArtistTracks.value = emptyList()
+                clearTrackSearch()
             }
             loadFirstPage(sortBy)
         }
@@ -184,14 +197,54 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshLibrary() {
         viewModelScope.launch {
+            _libraryRefreshing.value = true
             repo.refreshLibraryInBackground()
             loadedArtists = false
             loadedArtistId = null
             _artists.value = emptyList()
             _selectedArtistTracks.value = emptyList()
+            clearTrackSearch()
             val sortBy = sharedPreferences.getString("sort_by", "title") ?: "title"
-            loadFirstPage(sortBy)
+            try {
+                loadFirstPage(sortBy)
+            } finally {
+                _libraryRefreshing.value = false
+            }
         }
+    }
+
+    fun searchTracks(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) {
+            clearTrackSearch()
+            return
+        }
+        trackSearchJob?.cancel()
+        trackSearchJob = viewModelScope.launch {
+            _trackSearchLoading.value = true
+            try {
+                val sortBy = sharedPreferences.getString("sort_by", "title") ?: "title"
+                _trackSearchResults.value = repo.searchTracks(trimmed, sortBy).first()
+            } catch (_: Exception) {
+                _trackSearchResults.value = emptyList()
+            } finally {
+                _trackSearchLoading.value = false
+            }
+        }
+    }
+
+    fun clearTrackSearch() {
+        trackSearchJob?.cancel()
+        _trackSearchResults.value = emptyList()
+        _trackSearchLoading.value = false
+    }
+
+    fun setLibraryArtistDetailActive(active: Boolean) {
+        _libraryArtistDetailActive.value = active
+    }
+
+    fun requestLibraryInternalBack() {
+        _libraryInternalBackRequests.tryEmit(Unit)
     }
 
     fun onAppForeground() {
