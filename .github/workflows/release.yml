@@ -17,24 +17,24 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Validate Gradle Wrapper
-        uses: gradle/actions/wrapper-validation@v4
+        uses: gradle/actions/wrapper-validation@v5
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Install Android SDK packages
         run: |
@@ -70,15 +70,34 @@ jobs:
       - name: Sign release APK (optional)
         id: sign_release
         if: steps.detect.outputs.unsigned_exists == 'true' && steps.signing_ready.outputs.enabled == 'true'
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY_BASE64 }}
-          alias: ${{ secrets.ANDROID_ALIAS }}
-          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
         env:
-          BUILD_TOOLS_VERSION: "36.0.0"
+          KEY_B64: ${{ secrets.ANDROID_SIGNING_KEY_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_ALIAS }}
+          STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          UNSIGNED_APK="app/build/outputs/apk/release/app-release-unsigned.apk"
+          ALIGNED_APK="app/build/outputs/apk/release/app-release-aligned.apk"
+          SIGNED_APK="app/build/outputs/apk/release/app-release-signed.apk"
+          KEYSTORE_PATH="$RUNNER_TEMP/release-keystore.jks"
+          ZIPALIGN="${ANDROID_SDK_ROOT}/build-tools/36.0.0/zipalign"
+          APKSIGNER="${ANDROID_SDK_ROOT}/build-tools/36.0.0/apksigner"
+
+          echo "$KEY_B64" | base64 --decode > "$KEYSTORE_PATH"
+
+          "$ZIPALIGN" -f -p 4 "$UNSIGNED_APK" "$ALIGNED_APK"
+          "$APKSIGNER" sign \
+            --ks "$KEYSTORE_PATH" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:${STORE_PASS}" \
+            --key-pass "pass:${KEY_PASS}" \
+            --out "$SIGNED_APK" \
+            "$ALIGNED_APK"
+          "$APKSIGNER" verify "$SIGNED_APK"
+
+          rm -f "$KEYSTORE_PATH"
+          echo "signed_release_file=$SIGNED_APK" >> "$GITHUB_OUTPUT"
 
       - name: Prepare release assets
         run: |
@@ -86,8 +105,8 @@ jobs:
           mkdir -p dist
           cp app/build/outputs/apk/debug/app-debug.apk dist/weavelet-debug.apk
 
-          if [ -n "${{ steps.sign_release.outputs.signedReleaseFile }}" ] && [ -f "${{ steps.sign_release.outputs.signedReleaseFile }}" ]; then
-            cp "${{ steps.sign_release.outputs.signedReleaseFile }}" dist/weavelet-release-signed.apk
+          if [ -n "${{ steps.sign_release.outputs.signed_release_file }}" ] && [ -f "${{ steps.sign_release.outputs.signed_release_file }}" ]; then
+            cp "${{ steps.sign_release.outputs.signed_release_file }}" dist/weavelet-release-signed.apk
           elif [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
             cp app/build/outputs/apk/release/app-release.apk dist/weavelet-release.apk
           elif [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then

@@ -63,6 +63,7 @@ dependencies {
     implementation(libs.wear.tooling.preview)
     implementation(libs.activity.compose)
     implementation(libs.core.splashscreen)
+    implementation(libs.androidx.fragment.ktx)
     
     implementation(libs.wear.tiles)
     implementation(libs.wear.protolayout)
