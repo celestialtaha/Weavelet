@@ -84,7 +84,30 @@ jobs:
           ZIPALIGN="${ANDROID_SDK_ROOT}/build-tools/36.0.0/zipalign"
           APKSIGNER="${ANDROID_SDK_ROOT}/build-tools/36.0.0/apksigner"
 
-          echo "$KEY_B64" | base64 --decode > "$KEYSTORE_PATH"
+          SANITIZED_KEY="${KEY_B64#data:*;base64,}"
+          SANITIZED_KEY="$(printf '%s' "$SANITIZED_KEY" | tr -d '\r\n\t ')"
+
+          if [ -z "$SANITIZED_KEY" ]; then
+            echo "ANDROID_SIGNING_KEY_BASE64 is empty after sanitization."
+            exit 1
+          fi
+
+          if ! printf '%s' "$SANITIZED_KEY" | base64 --decode > "$KEYSTORE_PATH" 2>/dev/null; then
+            if ! printf '%s' "$SANITIZED_KEY" | openssl base64 -d -A > "$KEYSTORE_PATH" 2>/dev/null; then
+              echo "Invalid ANDROID_SIGNING_KEY_BASE64 secret. Recreate it from your .jks file as a single-line base64 string."
+              exit 1
+            fi
+          fi
+
+          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASS" >/dev/null 2>&1; then
+            echo "Keystore decode succeeded but keystore/password validation failed."
+            exit 1
+          fi
+
+          if ! keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASS" -alias "$KEY_ALIAS" >/dev/null 2>&1; then
+            echo "Key alias '$KEY_ALIAS' not found in keystore."
+            exit 1
+          fi
 
           "$ZIPALIGN" -f -p 4 "$UNSIGNED_APK" "$ALIGNED_APK"
           "$APKSIGNER" sign \
