@@ -11,6 +11,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.wear.compose.material3.AppScaffold
@@ -22,10 +25,15 @@ import com.wapp.wearmusic.presentation.viewmodel.MusicPlayerViewModel
 import com.wapp.wearmusic.presentation.viewmodel.SettingsViewModel
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        const val EXTRA_OPEN_DESTINATION = "com.wapp.wearmusic.extra.OPEN_DESTINATION"
+        const val DESTINATION_PLAYER = "player"
+    }
 
     private val viewModel: MusicPlayerViewModel by viewModels()
     private val settingsViewModel: SettingsViewModel by viewModels()
     private var contentInitialized = false
+    private var openPlayerRequestCount by mutableIntStateOf(0)
 
     /** Single-permission launcher keeps the callback minimal. */
     private val permissionLauncher = registerForActivityResult(
@@ -46,7 +54,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         initialiseComplicationSwitch()
+        handleLaunchIntent(intent)
         checkOrRequestPermission()
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleLaunchIntent(intent)
     }
 
     override fun onResume() {
@@ -75,7 +90,13 @@ class MainActivity : ComponentActivity() {
         if (contentInitialized) return
         contentInitialized = true
         setContent {
-            WearMusicApp()
+            WearMusicApp(openPlayerRequestCount = openPlayerRequestCount)
+        }
+    }
+
+    private fun handleLaunchIntent(intent: android.content.Intent?) {
+        if (intent?.getStringExtra(EXTRA_OPEN_DESTINATION) == DESTINATION_PLAYER) {
+            openPlayerRequestCount += 1
         }
     }
 
@@ -98,10 +119,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun WearMusicApp() {
+fun WearMusicApp(openPlayerRequestCount: Int = 0) {
     WearMusicTheme {
         AppScaffold {
-            MusicPlayerApp()
+            MusicPlayerApp(openPlayerRequestCount = openPlayerRequestCount)
         }
     }
 }

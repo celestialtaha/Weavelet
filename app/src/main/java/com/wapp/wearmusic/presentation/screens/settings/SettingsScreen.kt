@@ -66,13 +66,6 @@ fun SettingsScreen(
 
             item {
                 SettingSwitchButton(
-                    label = stringResource(R.string.auto_play_on_start),
-                    checked = settings.autoPlayOnStart,
-                    onCheckedChange = settingsViewModel::setAutoPlayOnStart
-                )
-            }
-            item {
-                SettingSwitchButton(
                     label = stringResource(R.string.show_album_art),
                     checked = settings.showAlbumArt,
                     onCheckedChange = settingsViewModel::setShowAlbumArt

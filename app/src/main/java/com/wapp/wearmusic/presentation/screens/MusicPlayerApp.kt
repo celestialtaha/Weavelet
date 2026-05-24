@@ -3,6 +3,7 @@ package com.wapp.wearmusic.presentation.screens
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -32,13 +33,15 @@ sealed class Screen {
 }
 
 @Composable
-fun MusicPlayerApp() {
+fun MusicPlayerApp(openPlayerRequestCount: Int = 0) {
     val viewModel: MusicPlayerViewModel = viewModel()
     val settingsViewModel: SettingsViewModel = viewModel()
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
 
     // Single source of truth for navigation
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
+    var playerBackTarget by remember { mutableStateOf<Screen>(Screen.Home) }
+    val saveableStateHolder = rememberSaveableStateHolder()
     val swipeState = rememberSwipeToDismissBoxState()
     val libraryArtistDetailActive by viewModel.libraryArtistDetailActive.collectAsStateWithLifecycle()
     val hasNowPlaying = playbackState.currentTrack != null
@@ -48,6 +51,13 @@ fun MusicPlayerApp() {
         viewModel.loadTracks()
     }
 
+    LaunchedEffect(openPlayerRequestCount) {
+        if (openPlayerRequestCount > 0) {
+            playerBackTarget = Screen.Home
+            currentScreen = Screen.Player
+        }
+    }
+
     // Handle swipe dismissals
     LaunchedEffect(swipeState.currentValue) {
         if (swipeState.currentValue == SwipeToDismissValue.Dismissed) {
@@ -55,7 +65,7 @@ fun MusicPlayerApp() {
             currentScreen = when (currentScreen) {
                 Screen.Settings -> Screen.Home
                 Screen.About -> Screen.Home
-                Screen.Player -> Screen.Library
+                Screen.Player -> playerBackTarget
                 Screen.Library -> {
                     if (libraryArtistDetailActive) {
                         viewModel.requestLibraryInternalBack()
@@ -85,19 +95,19 @@ fun MusicPlayerApp() {
                     onSettingsClick = { /* Handled in foreground */ },
                     onAboutClick = { /* Handled in foreground */ }
                 )
-                Screen.Player -> LibraryContent(
-                    viewModel = viewModel,
-                    settingsViewModel = settingsViewModel,
-                    onTrackClick = { index ->
-                        viewModel.playTracks(index)
-                        currentScreen = Screen.Player
-                    },
-                    onPlayArtistTrack = { tracks, index ->
-                        viewModel.playTrackList(tracks, index)
-                        currentScreen = Screen.Player
-                    },
-                    onBackClick = {}
-                )
+                Screen.Player -> {
+                    if (playerBackTarget == Screen.Home) {
+                        HomeScreen(
+                            showNowPlaying = hasNowPlaying,
+                            onNowPlayingClick = { /* Handled in foreground */ },
+                            onLibraryClick = { /* Handled in foreground */ },
+                            onSettingsClick = { /* Handled in foreground */ },
+                            onAboutClick = { /* Handled in foreground */ }
+                        )
+                    } else {
+                        Box(Modifier.fillMaxSize())
+                    }
+                }
                 Screen.Settings, Screen.About -> HomeScreen(
                     showNowPlaying = hasNowPlaying,
                     onNowPlayingClick = { /* Handled in foreground */ },
@@ -108,41 +118,58 @@ fun MusicPlayerApp() {
                 else -> Box(Modifier.fillMaxSize()) // Empty background for home
             }
         } else {
-            // Foreground shows current screen
-            when (currentScreen) {
-                Screen.Home -> HomeScreen(
-                    showNowPlaying = hasNowPlaying,
-                    onNowPlayingClick = { currentScreen = Screen.Player },
-                    onLibraryClick = { currentScreen = Screen.Library },
-                    onSettingsClick = { currentScreen = Screen.Settings },
-                    onAboutClick = { currentScreen = Screen.About }
-                )
-                Screen.Library -> LibraryContent(
-                    viewModel = viewModel,
-                    settingsViewModel = settingsViewModel,
-                    onTrackClick = { index ->
-                        viewModel.playTracks(index)
-                        currentScreen = Screen.Player
-                    },
-                    onPlayArtistTrack = { tracks, index ->
-                        viewModel.playTrackList(tracks, index)
-                        currentScreen = Screen.Player
-                    },
-                    onBackClick = { currentScreen = Screen.Home }
-                )
-                Screen.Player -> PlayerScreen(
-                    viewModel = viewModel,
-                    settingsViewModel = settingsViewModel
-                )
-                Screen.Settings -> SettingsScreen(
-                    settingsViewModel = settingsViewModel,
-                    onBackClick = { currentScreen = Screen.Home }
-                )
-                Screen.About -> AboutScreen(
-                    onBackClick = { currentScreen = Screen.Home }
-                )
+            saveableStateHolder.SaveableStateProvider(screenKey(currentScreen)) {
+                // Foreground shows current screen
+                when (currentScreen) {
+                    Screen.Home -> HomeScreen(
+                        showNowPlaying = hasNowPlaying,
+                        onNowPlayingClick = {
+                            playerBackTarget = Screen.Home
+                            currentScreen = Screen.Player
+                        },
+                        onLibraryClick = { currentScreen = Screen.Library },
+                        onSettingsClick = { currentScreen = Screen.Settings },
+                        onAboutClick = { currentScreen = Screen.About }
+                    )
+                    Screen.Library -> LibraryContent(
+                        viewModel = viewModel,
+                        settingsViewModel = settingsViewModel,
+                        onTrackClick = { index ->
+                            viewModel.playTracks(index)
+                            playerBackTarget = Screen.Library
+                            currentScreen = Screen.Player
+                        },
+                        onPlayArtistTrack = { tracks, index ->
+                            viewModel.playTrackList(tracks, index)
+                            playerBackTarget = Screen.Library
+                            currentScreen = Screen.Player
+                        },
+                        onBackClick = { currentScreen = Screen.Home }
+                    )
+                    Screen.Player -> PlayerScreen(
+                        viewModel = viewModel,
+                        settingsViewModel = settingsViewModel
+                    )
+                    Screen.Settings -> SettingsScreen(
+                        settingsViewModel = settingsViewModel,
+                        onBackClick = { currentScreen = Screen.Home }
+                    )
+                    Screen.About -> AboutScreen(
+                        onBackClick = { currentScreen = Screen.Home }
+                    )
+                }
             }
         }
+    }
+}
+
+private fun screenKey(screen: Screen): String {
+    return when (screen) {
+        Screen.Home -> "home"
+        Screen.Library -> "library"
+        Screen.Player -> "player"
+        Screen.Settings -> "settings"
+        Screen.About -> "about"
     }
 }
 

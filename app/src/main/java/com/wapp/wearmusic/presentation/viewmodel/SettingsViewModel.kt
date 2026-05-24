@@ -39,11 +39,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             enableComplication = sharedPreferences.getBoolean(KEY_ENABLE_COMPLICATION, true),
             sortBy = sharedPreferences.getString(KEY_SORT_BY, "title") ?: "title",
             shuffleMode = sharedPreferences.getBoolean(KEY_SHUFFLE_MODE, false),
-            repeatMode = RepeatMode.valueOf(
-                sharedPreferences.getString(KEY_REPEAT_MODE, RepeatMode.OFF.name) ?: RepeatMode.OFF.name
-            ),
+            repeatMode = loadRepeatMode(),
             hapticFeedback = sharedPreferences.getBoolean(KEY_HAPTIC_FEEDBACK, true)
         )
+    }
+
+    private fun loadRepeatMode(): RepeatMode {
+        val saved = sharedPreferences.getString(KEY_REPEAT_MODE, RepeatMode.OFF.name)
+        return runCatching {
+            RepeatMode.valueOf(saved ?: RepeatMode.OFF.name)
+        }.getOrDefault(RepeatMode.OFF)
     }
     
     /**

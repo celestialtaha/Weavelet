@@ -113,6 +113,12 @@ private fun tileLayout(
                     ActionBuilders.AndroidActivity.Builder()
                         .setPackageName(context.packageName)
                         .setClassName(MainActivity::class.java.name)
+                        .addKeyToExtraMapping(
+                            MainActivity.EXTRA_OPEN_DESTINATION,
+                            ActionBuilders.AndroidStringExtra.Builder()
+                                .setValue(MainActivity.DESTINATION_PLAYER)
+                                .build()
+                        )
                         .build()
                 )
                 .build()

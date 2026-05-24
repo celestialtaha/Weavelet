@@ -60,10 +60,10 @@
     <string name="about_footer">Made for your watch listening sessions.</string>
     
     <!-- Tile: primary chip text -->
-    <string name="open_player">Open Music Player</string>
+    <string name="open_player">Now Playing</string>
 
     <!-- Tile: accessibility / talk-back description -->
-    <string name="open_player_desc">Launch the Wear Music player</string>
+    <string name="open_player_desc">Open Now Playing</string>
     <string name="album_art">Album art</string>
     <string name="shuffle">Shuffle</string>
     <string name="repeat">Repeat</string>

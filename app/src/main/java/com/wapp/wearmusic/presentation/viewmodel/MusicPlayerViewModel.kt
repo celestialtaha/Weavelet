@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.graphics.Bitmap
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
@@ -30,6 +31,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         private const val PAGE_SIZE = 50
         private const val LIBRARY_SCAN_COOLDOWN_MS = 2 * 60 * 1000L
+        private const val KEY_HAPTIC_FEEDBACK = "haptic_feedback"
     }
 
     private val repo = MusicRepository(app)
@@ -51,6 +53,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val _libraryArtistDetailActive = MutableStateFlow(false)
     private val _libraryInternalBackRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private val _libraryRefreshing = MutableStateFlow(false)
+    private val _hapticEnabled = MutableStateFlow(sharedPreferences.getBoolean(KEY_HAPTIC_FEEDBACK, true))
     private var loadedSortBy: String? = null
     private var loadedArtists = false
     private var loadedArtistId: Long? = null
@@ -68,9 +71,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
             .apply {
                 addListener(playerListener)
                 shuffleModeEnabled = sharedPreferences.getBoolean("shuffle_mode", false)
-                repeatMode = when (RepeatMode.valueOf(
-                    sharedPreferences.getString("repeat_mode", RepeatMode.OFF.name) ?: RepeatMode.OFF.name
-                )) {
+                repeatMode = when (loadSavedRepeatMode()) {
                     RepeatMode.OFF -> Player.REPEAT_MODE_OFF
                     RepeatMode.ALL -> Player.REPEAT_MODE_ALL
                     RepeatMode.ONE -> Player.REPEAT_MODE_ONE
@@ -78,17 +79,26 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
             }
     }
     private var controller: MediaController? = null
+    private val preferenceChangeListener =
+        SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+            if (key == KEY_HAPTIC_FEEDBACK) {
+                _hapticEnabled.value = prefs.getBoolean(KEY_HAPTIC_FEEDBACK, true)
+            }
+        }
 
     init {
+        sharedPreferences.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
         registerLibraryScanReceiver()
         viewModelScope.launch {
             controller = controllerDeferred.await()
-            _shuffleMode.value = controller?.shuffleModeEnabled ?: false
-            _repeatMode.value = when (controller?.repeatMode) {
+            val activeController = controller ?: return@launch
+            _shuffleMode.value = activeController.shuffleModeEnabled
+            _repeatMode.value = when (activeController.repeatMode) {
                 Player.REPEAT_MODE_ALL -> RepeatMode.ALL
                 Player.REPEAT_MODE_ONE -> RepeatMode.ONE
                 else -> RepeatMode.OFF
             }
+            syncPlaybackStateFromController(activeController)
         }
     }
 
@@ -119,11 +129,12 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     val currentTrackId: StateFlow<String?> = _playbackState
         .map { it.currentTrack?.id }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
-    val hapticEnabled = MutableStateFlow(sharedPreferences.getBoolean("haptic_feedback", true))
+    val hapticEnabled: StateFlow<Boolean> = _hapticEnabled.asStateFlow()
 
     private val mediaItemCache = mutableMapOf<String, MediaItem>()
     private var progressTrackingEnabled = false
     private var trackSearchJob: Job? = null
+    private var currentTrackLookupJob: Job? = null
     private var lastLibraryFingerprint: MusicRepository.LibraryFingerprint? = null
     private var lastLibraryScanRequestMs = 0L
     private var libraryScanReceiverRegistered = false
@@ -138,6 +149,8 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         progressUpdateJob?.cancel()
         trackSearchJob?.cancel()
+        currentTrackLookupJob?.cancel()
+        sharedPreferences.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
         unregisterLibraryScanReceiver()
         controller?.let {
             it.removeListener(playerListener)
@@ -373,9 +386,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
             val controller = controllerDeferred.await()
             controller.setMediaItems(trackList.map { it.toCachedMediaItem() }, startIndex, 0)
             controller.prepare()
-            if (sharedPreferences.getBoolean("auto_play_on_start", false)) {
-                controller.play()
-            }
+            controller.play()
             _playbackState.value = _playbackState.value.copy(currentTrack = trackList.getOrNull(startIndex))
         }
     }
@@ -481,6 +492,9 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
             _playbackState.update { it.copy(position = controller?.currentPosition ?: 0L) }
         }
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            controller?.let { syncPlaybackStateFromController(it) }
+        }
     }
 
     private var progressUpdateJob: Job? = null
@@ -495,6 +509,13 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun sanitizeDuration(dur: Long?): Long = dur?.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0L
+
+    private fun loadSavedRepeatMode(): RepeatMode {
+        val saved = sharedPreferences.getString("repeat_mode", RepeatMode.OFF.name)
+        return runCatching {
+            RepeatMode.valueOf(saved ?: RepeatMode.OFF.name)
+        }.getOrDefault(RepeatMode.OFF)
+    }
 
     private suspend fun loadFirstPage(sortBy: String) {
         try {
@@ -518,21 +539,40 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         runCatching { complicationUpdateRequester.requestUpdateAll() }
     }
 
+    private fun syncPlaybackStateFromController(player: Player) {
+        _playbackState.update {
+            it.copy(
+                isPlaying = player.isPlaying,
+                position = player.currentPosition.coerceAtLeast(0L),
+                duration = sanitizeDuration(player.duration)
+            )
+        }
+        MusicComplicationProvider.isPlaying.value = player.isPlaying
+        if (player.currentMediaItem != null) {
+            updateCurrentTrack()
+        } else {
+            _playbackState.update { it.copy(currentTrack = null) }
+            MusicComplicationProvider.currentTrackTitle.value = null
+        }
+        requestComplicationUpdate()
+    }
+
     private fun updateCurrentTrack() {
         val mediaId = controller?.currentMediaItem?.mediaId ?: return
         val cachedTrack = _tracks.value.find { it.id == mediaId }
         if (cachedTrack != null) {
+            currentTrackLookupJob?.cancel()
             _playbackState.update { it.copy(currentTrack = cachedTrack) }
             MusicComplicationProvider.currentTrackTitle.value = cachedTrack.title
             requestComplicationUpdate()
         } else {
-            viewModelScope.launch {
-                repo.getTrackById(mediaId).collectLatest { track ->
-                    if (track != null) {
-                        _playbackState.update { it.copy(currentTrack = track) }
-                        MusicComplicationProvider.currentTrackTitle.value = track.title
-                        requestComplicationUpdate()
-                    }
+            currentTrackLookupJob?.cancel()
+            currentTrackLookupJob = viewModelScope.launch {
+                val track = repo.getTrackById(mediaId).first()
+                if (track != null && controller?.currentMediaItem?.mediaId == mediaId) {
+                    _playbackState.update { it.copy(currentTrack = track) }
+                    MusicComplicationProvider.currentTrackTitle.value = track.title
+                    requestComplicationUpdate()
                 }
             }
         }
