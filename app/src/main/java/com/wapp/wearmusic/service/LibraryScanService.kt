@@ -59,8 +59,8 @@ class LibraryScanService : Service() {
         @Suppress("DEPRECATION")
         val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
         val files = musicDir
-            ?.listFiles()
-            ?.asSequence()
+            ?.takeIf { it.exists() }
+            ?.walkTopDown()
             ?.filter(File::isFile)
             ?.filter { isLikelyAudioFile(it.name) }
             ?.map(File::getAbsolutePath)

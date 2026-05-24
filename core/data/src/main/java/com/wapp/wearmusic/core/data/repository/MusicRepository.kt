@@ -36,6 +36,7 @@ class MusicRepository(private val context: Context) {
         private const val CACHE_EXPIRY_MS = 30 * 60 * 1000L // 30 minutes
         private const val ALBUM_ART_CACHE_SIZE = 20 * 1024 * 1024 // 20MB for album art
         private const val ARTIST_TRACK_CACHE_SIZE = 40
+        private const val SEARCH_RESULT_LIMIT = 100
         private const val SORT_TITLE = "title"
         private const val SORT_ARTIST = "artist"
         private const val SORT_ALBUM = "album"
@@ -67,6 +68,12 @@ class MusicRepository(private val context: Context) {
     private data class CachedArtistTracks(
         val tracks: List<Track>,
         val timestamp: Long
+    )
+
+    private data class ArtistAccumulator(
+        val id: Long,
+        val name: String,
+        var trackCount: Int
     )
 
     data class LibraryFingerprint(
@@ -146,7 +153,8 @@ class MusicRepository(private val context: Context) {
 
     fun searchTracks(
         query: String,
-        sortBy: String = SORT_TITLE
+        sortBy: String = SORT_TITLE,
+        limit: Int = SEARCH_RESULT_LIMIT
     ): Flow<List<Track>> = flow {
         val trimmed = query.trim()
         if (trimmed.isBlank()) {
@@ -157,6 +165,7 @@ class MusicRepository(private val context: Context) {
         val tracks = mutableListOf<Track>()
         val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         val sortConfig = getSortConfig(sortBy)
+        val resultLimit = limit.coerceAtLeast(1)
 
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
@@ -186,17 +195,19 @@ class MusicRepository(private val context: Context) {
                     arrayOf(sortConfig.sortColumn)
                 )
                 putInt(android.content.ContentResolver.QUERY_ARG_SORT_DIRECTION, sortConfig.sortDirection)
+                putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, resultLimit)
             }
             context.contentResolver.query(collection, projection, queryArgs, null)?.use { cursor ->
                 processCursor(cursor, tracks)
             }
         } else {
+            val limitedSortOrder = "${sortConfig.legacySortOrder} LIMIT $resultLimit"
             context.contentResolver.query(
                 collection,
                 projection,
                 selection,
                 selectionArgs,
-                sortConfig.legacySortOrder
+                limitedSortOrder
             )?.use { cursor ->
                 processCursor(cursor, tracks)
             }
@@ -209,6 +220,15 @@ class MusicRepository(private val context: Context) {
         val sortColumn: String,
         val sortDirection: Int,
         val legacySortOrder: String
+    )
+
+    private data class TrackCursorColumns(
+        val id: Int,
+        val title: Int,
+        val artist: Int,
+        val album: Int,
+        val albumId: Int,
+        val duration: Int
     )
 
     private fun getSortConfig(sortBy: String): SortConfig {
@@ -237,20 +257,29 @@ class MusicRepository(private val context: Context) {
     }
 
     private fun processCursor(cursor: android.database.Cursor, tracks: MutableList<Track>) {
+        val columns = getTrackCursorColumns(cursor)
         while (cursor.moveToNext()) {
-            processCursorRow(cursor, tracks)
+            processCursorRow(cursor, columns, tracks)
         }
     }
 
-    private fun processCursorRow(cursor: android.database.Cursor, tracks: MutableList<Track>): Boolean {
-        val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-        val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-        val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-        val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-        val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-        val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+    private fun getTrackCursorColumns(cursor: android.database.Cursor): TrackCursorColumns {
+        return TrackCursorColumns(
+            id = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID),
+            title = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE),
+            artist = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST),
+            album = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM),
+            albumId = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID),
+            duration = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+        )
+    }
 
-        val id = cursor.getLong(idColumn)
+    private fun processCursorRow(
+        cursor: android.database.Cursor,
+        columns: TrackCursorColumns,
+        tracks: MutableList<Track>
+    ): Boolean {
+        val id = cursor.getLong(columns.id)
         val trackId = id.toString()
 
         val cached = getCachedTrack(trackId)
@@ -259,11 +288,11 @@ class MusicRepository(private val context: Context) {
             return true
         }
 
-        val title = cursor.getString(titleColumn) ?: "Unknown Title"
-        val artist = cursor.getString(artistColumn) ?: "Unknown Artist"
-        val album = cursor.getString(albumColumn) ?: "Unknown Album"
-        val albumId = cursor.getLong(albumIdColumn)
-        val duration = cursor.getLong(durationColumn)
+        val title = cursor.getString(columns.title) ?: "Unknown Title"
+        val artist = cursor.getString(columns.artist) ?: "Unknown Artist"
+        val album = cursor.getString(columns.album) ?: "Unknown Album"
+        val albumId = cursor.getLong(columns.albumId)
+        val duration = cursor.getLong(columns.duration)
 
         val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
         val albumArtUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId)
@@ -417,45 +446,68 @@ class MusicRepository(private val context: Context) {
             return@flow
         }
 
-        val artists = mutableListOf<ArtistSummary>()
-        val collection = MediaStore.Audio.Artists.EXTERNAL_CONTENT_URI
+        val artistsById = linkedMapOf<Long, ArtistAccumulator>()
+        val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         val projection = arrayOf(
-            MediaStore.Audio.Artists._ID,
-            MediaStore.Audio.Artists.ARTIST,
-            MediaStore.Audio.Artists.NUMBER_OF_TRACKS
+            MediaStore.Audio.Media.ARTIST_ID,
+            MediaStore.Audio.Media.ARTIST
         )
-        val selection = "${MediaStore.Audio.Artists.NUMBER_OF_TRACKS} > 0"
-        val sortOrder = "${MediaStore.Audio.Artists.ARTIST} COLLATE NOCASE ASC"
+        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
 
-        context.contentResolver.query(
-            collection,
-            projection,
-            selection,
-            null,
-            sortOrder
-        )?.use { cursor ->
-            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists._ID)
-            val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Artists.ARTIST)
-            val trackCountColumn = cursor.getColumnIndex(MediaStore.Audio.Artists.NUMBER_OF_TRACKS)
-
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(idColumn)
-                val name = normalizeArtistName(cursor.getString(artistColumn))
-                val trackCount = if (trackCountColumn >= 0) cursor.getInt(trackCountColumn) else 0
-                artists.add(
-                    ArtistSummary(
-                        id = id,
-                        name = name,
-                        trackCount = trackCount
-                    )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val queryArgs = android.os.Bundle().apply {
+                putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                putStringArray(
+                    android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS,
+                    arrayOf(MediaStore.Audio.Media.ARTIST)
                 )
+                putInt(
+                    android.content.ContentResolver.QUERY_ARG_SORT_DIRECTION,
+                    android.content.ContentResolver.QUERY_SORT_DIRECTION_ASCENDING
+                )
+            }
+            context.contentResolver.query(collection, projection, queryArgs, null)?.use { cursor ->
+                processArtistCursor(cursor, artistsById)
+            }
+        } else {
+            val sortOrder = "${MediaStore.Audio.Media.ARTIST} COLLATE NOCASE ASC"
+            context.contentResolver.query(
+                collection,
+                projection,
+                selection,
+                null,
+                sortOrder
+            )?.use { cursor ->
+                processArtistCursor(cursor, artistsById)
             }
         }
 
+        val artists = artistsById.values
+            .map { ArtistSummary(id = it.id, name = it.name, trackCount = it.trackCount) }
+            .sortedBy { it.name.lowercase() }
         cachedArtists = artists
         artistsCacheTime = currentTime
         emit(artists)
     }.flowOn(Dispatchers.IO)
+
+    private fun processArtistCursor(
+        cursor: android.database.Cursor,
+        artistsById: MutableMap<Long, ArtistAccumulator>
+    ) {
+        val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST_ID)
+        val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+
+        while (cursor.moveToNext()) {
+            val id = cursor.getLong(idColumn)
+            val name = normalizeArtistName(cursor.getString(artistColumn))
+            val existing = artistsById[id]
+            if (existing == null) {
+                artistsById[id] = ArtistAccumulator(id = id, name = name, trackCount = 1)
+            } else {
+                existing.trackCount += 1
+            }
+        }
+    }
 
     fun getTracksByArtist(
         artistId: Long,
@@ -558,7 +610,7 @@ class MusicRepository(private val context: Context) {
         context.contentResolver.query(collection, projection, selection, arrayOf(trackId), null)?.use { cursor ->
             if (cursor.moveToFirst()) {
                 val tracks = mutableListOf<Track>()
-                processCursorRow(cursor, tracks)
+                processCursorRow(cursor, getTrackCursorColumns(cursor), tracks)
                 if (tracks.isNotEmpty()) {
                     emit(tracks[0])
                     return@flow
