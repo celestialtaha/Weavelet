@@ -13,16 +13,25 @@ package com.wapp.wearmusic.tile
 
 import android.content.Context
 import androidx.wear.protolayout.ActionBuilders
+import androidx.wear.protolayout.DimensionBuilders.dp
+import androidx.wear.protolayout.DimensionBuilders.expand
 import androidx.wear.protolayout.LayoutElementBuilders
+import androidx.wear.protolayout.LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER
+import androidx.wear.protolayout.LayoutElementBuilders.TEXT_ALIGN_CENTER
+import androidx.wear.protolayout.LayoutElementBuilders.TEXT_OVERFLOW_ELLIPSIZE
+import androidx.wear.protolayout.LayoutElementBuilders.VERTICAL_ALIGN_CENTER
 import androidx.wear.protolayout.ModifiersBuilders
 import androidx.wear.protolayout.ResourceBuilders
 import androidx.wear.protolayout.TimelineBuilders
-import androidx.wear.protolayout.material.ChipColors
-import androidx.wear.protolayout.material.Colors
-import androidx.wear.protolayout.material.CompactChip
-import androidx.wear.protolayout.material.Text
-import androidx.wear.protolayout.material.Typography
-import androidx.wear.protolayout.material.layouts.PrimaryLayout
+import androidx.wear.protolayout.material3.PrimaryLayoutMargins.Companion.DEFAULT_PRIMARY_LAYOUT_MARGIN
+import androidx.wear.protolayout.material3.Typography
+import androidx.wear.protolayout.material3.materialScope
+import androidx.wear.protolayout.material3.primaryLayout
+import androidx.wear.protolayout.material3.text
+import androidx.wear.protolayout.material3.textEdgeButton
+import androidx.wear.protolayout.modifiers.LayoutModifier
+import androidx.wear.protolayout.modifiers.contentDescription
+import androidx.wear.protolayout.types.layoutString
 import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders
 import com.google.android.horologist.annotations.ExperimentalHorologistApi
@@ -31,6 +40,10 @@ import com.wapp.wearmusic.R
 import com.wapp.wearmusic.presentation.MainActivity
 
 private const val RESOURCES_VERSION = "1"
+private const val PREFS_NAME = "music_player_settings"
+private const val KEY_TILE_TRACK_TITLE = "tile_track_title"
+private const val KEY_TILE_TRACK_ARTIST = "tile_track_artist"
+private const val KEY_TILE_IS_PLAYING = "tile_is_playing"
 
 @OptIn(ExperimentalHorologistApi::class)
 class MainTileService : SuspendingTileService() {
@@ -97,14 +110,6 @@ private fun tileLayout(
     context: Context
 ): LayoutElementBuilders.LayoutElement {
     val deviceParameters = requestParams.deviceConfiguration
-
-    /* -------------------------- title text --------------------------- */
-    val title = Text.Builder(context, context.getString(R.string.app_name))
-        .setTypography(Typography.TYPOGRAPHY_DISPLAY1)      // uses new system font on Wear OS 6
-        .setMaxLines(1)
-        .build()
-
-    /* -------------------------- primary chip ------------------------ */
     val openAppClickable = ModifiersBuilders.Clickable.Builder()
         .setId("open_music_player")
         .setOnClick(
@@ -125,16 +130,102 @@ private fun tileLayout(
         )
         .build()
 
-    val openAppChip = CompactChip.Builder(context, openAppClickable, deviceParameters)
-        .setChipColors(ChipColors.primaryChipColors(Colors.DEFAULT))
-        .setTextContent(context.getString(R.string.open_player))
-        .setContentDescription(context.getString(R.string.open_player_desc))
-        .build()
+    val nowPlaying = readNowPlaying(context)
+    val status = when {
+        nowPlaying.title == null -> context.getString(R.string.tile_ready)
+        nowPlaying.isPlaying -> context.getString(R.string.tile_now_playing)
+        else -> context.getString(R.string.tile_paused)
+    }
+    val title = nowPlaying.title ?: context.getString(R.string.tile_no_track)
+    val artist = nowPlaying.artist ?: context.getString(R.string.app_name)
 
-    /* -------------------------- primary layout ---------------------- */
-    return PrimaryLayout.Builder(deviceParameters)
-        .setResponsiveContentInsetEnabled(true)
-        .setContent(title)
-        .setPrimaryChipContent(openAppChip)
-        .build()
+    return materialScope(context, deviceParameters) {
+        primaryLayout(
+            titleSlot = {
+                text(
+                    text = context.getString(R.string.app_name).layoutString,
+                    typography = Typography.TITLE_SMALL,
+                    maxLines = 1
+                )
+            },
+            mainSlot = {
+                LayoutElementBuilders.Box.Builder()
+                    .setWidth(expand())
+                    .setHeight(expand())
+                    .setHorizontalAlignment(HORIZONTAL_ALIGN_CENTER)
+                    .setVerticalAlignment(VERTICAL_ALIGN_CENTER)
+                    .addContent(
+                        LayoutElementBuilders.Column.Builder()
+                            .setWidth(expand())
+                            .setHorizontalAlignment(HORIZONTAL_ALIGN_CENTER)
+                            .addContent(
+                                text(
+                                    text = status.layoutString,
+                                    typography = Typography.LABEL_SMALL,
+                                    color = colorScheme.primary,
+                                    maxLines = 1,
+                                    alignment = TEXT_ALIGN_CENTER
+                                )
+                            )
+                            .addContent(
+                                LayoutElementBuilders.Spacer.Builder().setHeight(dp(4f)).build()
+                            )
+                            .addContent(
+                                text(
+                                    text = title.layoutString,
+                                    typography = Typography.TITLE_MEDIUM,
+                                    color = colorScheme.onBackground,
+                                    maxLines = 2,
+                                    alignment = TEXT_ALIGN_CENTER,
+                                    overflow = TEXT_OVERFLOW_ELLIPSIZE,
+                                    incrementsForTypographySize = listOf(-2f, -4f)
+                                )
+                            )
+                            .addContent(
+                                LayoutElementBuilders.Spacer.Builder().setHeight(dp(2f)).build()
+                            )
+                            .addContent(
+                                text(
+                                    text = artist.layoutString,
+                                    typography = Typography.BODY_SMALL,
+                                    color = colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    alignment = TEXT_ALIGN_CENTER,
+                                    overflow = TEXT_OVERFLOW_ELLIPSIZE
+                                )
+                            )
+                            .build()
+                        )
+                    .build()
+            },
+            bottomSlot = {
+                textEdgeButton(
+                    onClick = openAppClickable,
+                    modifier = LayoutModifier.contentDescription(
+                        context.getString(R.string.open_player_desc)
+                    )
+                ) {
+                    text(context.getString(R.string.open_player).layoutString)
+                }
+            },
+            onClick = openAppClickable,
+            margins = DEFAULT_PRIMARY_LAYOUT_MARGIN
+        )
+    }
+}
+
+private data class TileNowPlaying(
+    val title: String?,
+    val artist: String?,
+    val isPlaying: Boolean
+)
+
+private fun readNowPlaying(context: Context): TileNowPlaying {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val rawTitle = prefs.getString(KEY_TILE_TRACK_TITLE, null)?.takeIf { it.isNotBlank() }
+    return TileNowPlaying(
+        title = rawTitle,
+        artist = prefs.getString(KEY_TILE_TRACK_ARTIST, null)?.takeIf { it.isNotBlank() },
+        isPlaying = prefs.getBoolean(KEY_TILE_IS_PLAYING, false)
+    )
 }

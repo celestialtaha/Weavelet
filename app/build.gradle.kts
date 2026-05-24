@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.wear.tiles)
     implementation(libs.wear.protolayout)
     implementation(libs.wear.protolayout.material)
+    implementation(libs.wear.protolayout.material3)
     implementation(libs.wear.protolayout.expression)
     debugImplementation(libs.wear.tiles.renderer)
     

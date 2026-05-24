@@ -15,6 +15,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.*
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import androidx.wear.tiles.TileService
 import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
 import com.wapp.wearmusic.complication.MusicComplicationProvider
 import com.wapp.wearmusic.core.data.model.ArtistSummary
@@ -23,6 +24,7 @@ import com.wapp.wearmusic.core.data.model.Track
 import com.wapp.wearmusic.core.data.repository.MusicRepository
 import com.wapp.wearmusic.core.player.MusicPlaybackService
 import com.wapp.wearmusic.service.LibraryScanService
+import com.wapp.wearmusic.tile.MainTileService
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.guava.await
@@ -32,6 +34,9 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         private const val PAGE_SIZE = 50
         private const val LIBRARY_SCAN_COOLDOWN_MS = 2 * 60 * 1000L
         private const val KEY_HAPTIC_FEEDBACK = "haptic_feedback"
+        private const val KEY_TILE_TRACK_TITLE = "tile_track_title"
+        private const val KEY_TILE_TRACK_ARTIST = "tile_track_artist"
+        private const val KEY_TILE_IS_PLAYING = "tile_is_playing"
     }
 
     private val repo = MusicRepository(app)
@@ -487,6 +492,8 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
             }
             _playbackState.value = _playbackState.value.copy(isPlaying = isPlaying)
             MusicComplicationProvider.isPlaying.value = isPlaying
+            sharedPreferences.edit { putBoolean(KEY_TILE_IS_PLAYING, isPlaying) }
+            requestTileUpdate()
             requestComplicationUpdate()
         }
         override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
@@ -553,6 +560,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             _playbackState.update { it.copy(currentTrack = null) }
             MusicComplicationProvider.currentTrackTitle.value = null
+            clearTileNowPlaying()
         }
         requestComplicationUpdate()
     }
@@ -564,6 +572,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
             currentTrackLookupJob?.cancel()
             _playbackState.update { it.copy(currentTrack = cachedTrack) }
             MusicComplicationProvider.currentTrackTitle.value = cachedTrack.title
+            updateTileNowPlaying(cachedTrack)
             requestComplicationUpdate()
         } else {
             currentTrackLookupJob?.cancel()
@@ -572,9 +581,35 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
                 if (track != null && controller?.currentMediaItem?.mediaId == mediaId) {
                     _playbackState.update { it.copy(currentTrack = track) }
                     MusicComplicationProvider.currentTrackTitle.value = track.title
+                    updateTileNowPlaying(track)
                     requestComplicationUpdate()
                 }
             }
+        }
+    }
+
+    private fun updateTileNowPlaying(track: Track) {
+        sharedPreferences.edit {
+            putString(KEY_TILE_TRACK_TITLE, track.title)
+            putString(KEY_TILE_TRACK_ARTIST, track.artist)
+            putBoolean(KEY_TILE_IS_PLAYING, controller?.isPlaying == true)
+        }
+        requestTileUpdate()
+    }
+
+    private fun clearTileNowPlaying() {
+        sharedPreferences.edit {
+            remove(KEY_TILE_TRACK_TITLE)
+            remove(KEY_TILE_TRACK_ARTIST)
+            putBoolean(KEY_TILE_IS_PLAYING, false)
+        }
+        requestTileUpdate()
+    }
+
+    private fun requestTileUpdate() {
+        val app = getApplication<Application>()
+        runCatching {
+            TileService.getUpdater(app).requestUpdate(MainTileService::class.java)
         }
     }
 }
