@@ -42,7 +42,9 @@ jobs:
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Build APKs
-        run: ./gradlew :app:assembleDebug :app:assembleRelease
+        run: |
+          ./gradlew --no-daemon --max-workers=1 :app:assembleDebug
+          ./gradlew --no-daemon --max-workers=1 :app:assembleRelease
 
       - name: Detect release APK paths
         id: detect
