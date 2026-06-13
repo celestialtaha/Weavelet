@@ -36,6 +36,7 @@ import androidx.wear.compose.material3.Card
 import androidx.wear.compose.material3.CardDefaults
 import androidx.wear.compose.material3.CircularProgressIndicator
 import androidx.wear.compose.material3.Icon
+import androidx.wear.compose.material3.IconButton
 import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.ListSubHeader
 import androidx.wear.compose.material3.MaterialTheme
@@ -482,13 +483,16 @@ private fun SearchBox(
             )
 
             if (query.isNotEmpty()) {
-                Icon(
-                    Icons.Default.Clear,
-                    contentDescription = stringResource(R.string.clear),
-                    modifier = Modifier
-                        .size(16.dp)
-                        .clickable { onQueryChange("") }
-                )
+                IconButton(
+                    onClick = { onQueryChange("") },
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Clear,
+                        contentDescription = stringResource(R.string.clear),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     }

@@ -1,8 +1,10 @@
 package com.wapp.wearmusic.presentation.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -23,13 +25,12 @@ import com.wapp.wearmusic.presentation.viewmodel.SettingsViewModel
 /**
  * Root composable that hosts Library ⇄ Player ⇄ Settings
  */
-// Define sealed class OUTSIDE the composable function at the top level
-sealed class Screen {
-    object Home : Screen()
-    object Library : Screen()
-    object Player : Screen()
-    object Settings : Screen()
-    object About : Screen()
+enum class Screen {
+    HOME,
+    LIBRARY,
+    PLAYER,
+    SETTINGS,
+    ABOUT
 }
 
 @Composable
@@ -39,8 +40,8 @@ fun MusicPlayerApp(openPlayerRequestCount: Int = 0) {
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
 
     // Single source of truth for navigation
-    var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
-    var playerBackTarget by remember { mutableStateOf<Screen>(Screen.Home) }
+    var currentScreen by rememberSaveable { mutableStateOf(Screen.HOME) }
+    var playerBackTarget by rememberSaveable { mutableStateOf(Screen.HOME) }
     val saveableStateHolder = rememberSaveableStateHolder()
     val swipeState = rememberSwipeToDismissBoxState()
     val libraryArtistDetailActive by viewModel.libraryArtistDetailActive.collectAsStateWithLifecycle()
@@ -53,50 +54,58 @@ fun MusicPlayerApp(openPlayerRequestCount: Int = 0) {
 
     LaunchedEffect(openPlayerRequestCount) {
         if (openPlayerRequestCount > 0) {
-            playerBackTarget = Screen.Home
-            currentScreen = Screen.Player
+            playerBackTarget = Screen.HOME
+            currentScreen = Screen.PLAYER
         }
+    }
+
+    fun navigateBack() {
+        currentScreen = when (currentScreen) {
+            Screen.SETTINGS -> Screen.HOME
+            Screen.ABOUT -> Screen.HOME
+            Screen.PLAYER -> playerBackTarget
+            Screen.LIBRARY -> {
+                if (libraryArtistDetailActive) {
+                    viewModel.requestLibraryInternalBack()
+                    Screen.LIBRARY
+                } else {
+                    Screen.HOME
+                }
+            }
+            Screen.HOME -> Screen.HOME
+        }
+    }
+
+    BackHandler(enabled = currentScreen != Screen.HOME) {
+        navigateBack()
     }
 
     // Handle swipe dismissals
     LaunchedEffect(swipeState.currentValue) {
         if (swipeState.currentValue == SwipeToDismissValue.Dismissed) {
             swipeState.snapTo(SwipeToDismissValue.Default)
-            currentScreen = when (currentScreen) {
-                Screen.Settings -> Screen.Home
-                Screen.About -> Screen.Home
-                Screen.Player -> playerBackTarget
-                Screen.Library -> {
-                    if (libraryArtistDetailActive) {
-                        viewModel.requestLibraryInternalBack()
-                        Screen.Library
-                    } else {
-                        Screen.Home
-                    }
-                }
-                else -> Screen.Home
-            }
+            navigateBack()
         }
     }
 
     BasicSwipeToDismissBox(
         state = swipeState,
-        userSwipeEnabled = currentScreen != Screen.Home,
+        userSwipeEnabled = currentScreen != Screen.HOME,
         backgroundKey = "Background",
         contentKey = "Foreground"
     ) { isBackground ->
         if (isBackground) {
             // Background shows previous screen
             when (currentScreen) {
-                Screen.Library -> HomeScreen(
+                Screen.LIBRARY -> HomeScreen(
                     showNowPlaying = hasNowPlaying,
                     onNowPlayingClick = { /* Handled in foreground */ },
                     onLibraryClick = { /* Handled in foreground */ },
                     onSettingsClick = { /* Handled in foreground */ },
                     onAboutClick = { /* Handled in foreground */ }
                 )
-                Screen.Player -> {
-                    if (playerBackTarget == Screen.Home) {
+                Screen.PLAYER -> {
+                    if (playerBackTarget == Screen.HOME) {
                         HomeScreen(
                             showNowPlaying = hasNowPlaying,
                             onNowPlayingClick = { /* Handled in foreground */ },
@@ -108,7 +117,7 @@ fun MusicPlayerApp(openPlayerRequestCount: Int = 0) {
                         Box(Modifier.fillMaxSize())
                     }
                 }
-                Screen.Settings, Screen.About -> HomeScreen(
+                Screen.SETTINGS, Screen.ABOUT -> HomeScreen(
                     showNowPlaying = hasNowPlaying,
                     onNowPlayingClick = { /* Handled in foreground */ },
                     onLibraryClick = { /* Handled in foreground */ },
@@ -121,41 +130,41 @@ fun MusicPlayerApp(openPlayerRequestCount: Int = 0) {
             saveableStateHolder.SaveableStateProvider(screenKey(currentScreen)) {
                 // Foreground shows current screen
                 when (currentScreen) {
-                    Screen.Home -> HomeScreen(
+                    Screen.HOME -> HomeScreen(
                         showNowPlaying = hasNowPlaying,
                         onNowPlayingClick = {
-                            playerBackTarget = Screen.Home
-                            currentScreen = Screen.Player
+                            playerBackTarget = Screen.HOME
+                            currentScreen = Screen.PLAYER
                         },
-                        onLibraryClick = { currentScreen = Screen.Library },
-                        onSettingsClick = { currentScreen = Screen.Settings },
-                        onAboutClick = { currentScreen = Screen.About }
+                        onLibraryClick = { currentScreen = Screen.LIBRARY },
+                        onSettingsClick = { currentScreen = Screen.SETTINGS },
+                        onAboutClick = { currentScreen = Screen.ABOUT }
                     )
-                    Screen.Library -> LibraryContent(
+                    Screen.LIBRARY -> LibraryContent(
                         viewModel = viewModel,
                         settingsViewModel = settingsViewModel,
                         onTrackClick = { index ->
                             viewModel.playTracks(index)
-                            playerBackTarget = Screen.Library
-                            currentScreen = Screen.Player
+                            playerBackTarget = Screen.LIBRARY
+                            currentScreen = Screen.PLAYER
                         },
                         onPlayArtistTrack = { tracks, index ->
                             viewModel.playTrackList(tracks, index)
-                            playerBackTarget = Screen.Library
-                            currentScreen = Screen.Player
+                            playerBackTarget = Screen.LIBRARY
+                            currentScreen = Screen.PLAYER
                         },
-                        onBackClick = { currentScreen = Screen.Home }
+                        onBackClick = { currentScreen = Screen.HOME }
                     )
-                    Screen.Player -> PlayerScreen(
+                    Screen.PLAYER -> PlayerScreen(
                         viewModel = viewModel,
                         settingsViewModel = settingsViewModel
                     )
-                    Screen.Settings -> SettingsScreen(
+                    Screen.SETTINGS -> SettingsScreen(
                         settingsViewModel = settingsViewModel,
-                        onBackClick = { currentScreen = Screen.Home }
+                        onBackClick = { currentScreen = Screen.HOME }
                     )
-                    Screen.About -> AboutScreen(
-                        onBackClick = { currentScreen = Screen.Home }
+                    Screen.ABOUT -> AboutScreen(
+                        onBackClick = { currentScreen = Screen.HOME }
                     )
                 }
             }
@@ -165,11 +174,11 @@ fun MusicPlayerApp(openPlayerRequestCount: Int = 0) {
 
 private fun screenKey(screen: Screen): String {
     return when (screen) {
-        Screen.Home -> "home"
-        Screen.Library -> "library"
-        Screen.Player -> "player"
-        Screen.Settings -> "settings"
-        Screen.About -> "about"
+        Screen.HOME -> "home"
+        Screen.LIBRARY -> "library"
+        Screen.PLAYER -> "player"
+        Screen.SETTINGS -> "settings"
+        Screen.ABOUT -> "about"
     }
 }
 
