@@ -140,6 +140,18 @@ jobs:
 
           (cd dist && sha256sum *.apk > SHA256SUMS.txt)
 
+      - name: Verify release assets
+        run: |
+          set -euo pipefail
+          test -s dist/weavelet-debug.apk
+          release_count="$(find dist -maxdepth 1 -type f -name 'weavelet-release*.apk' | wc -l | tr -d ' ')"
+          if [ "$release_count" -lt 1 ]; then
+            echo "No release APK asset was prepared."
+            ls -la dist
+            exit 1
+          fi
+          (cd dist && sha256sum -c SHA256SUMS.txt)
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:

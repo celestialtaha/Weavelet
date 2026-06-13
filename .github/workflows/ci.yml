@@ -41,4 +41,4 @@ jobs:
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Build debug APK
-        run: ./gradlew :app:assembleDebug
+        run: ./gradlew --no-daemon --max-workers=2 :app:assembleDebug
