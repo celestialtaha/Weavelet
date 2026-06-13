@@ -27,13 +27,18 @@ import com.wapp.wearmusic.presentation.viewmodel.SettingsViewModel
 class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_OPEN_DESTINATION = "com.wapp.wearmusic.extra.OPEN_DESTINATION"
+        const val EXTRA_TILE_ACTION = "com.wapp.wearmusic.extra.TILE_ACTION"
         const val DESTINATION_PLAYER = "player"
+        const val DESTINATION_LIBRARY = "library"
+        const val TILE_ACTION_TOGGLE_PLAYBACK = "toggle_playback"
     }
 
     private val viewModel: MusicPlayerViewModel by viewModels()
     private val settingsViewModel: SettingsViewModel by viewModels()
     private var contentInitialized = false
     private var openPlayerRequestCount by mutableIntStateOf(0)
+    private var openLibraryRequestCount by mutableIntStateOf(0)
+    private var togglePlaybackRequestCount by mutableIntStateOf(0)
 
     /** Single-permission launcher keeps the callback minimal. */
     private val permissionLauncher = registerForActivityResult(
@@ -90,13 +95,21 @@ class MainActivity : ComponentActivity() {
         if (contentInitialized) return
         contentInitialized = true
         setContent {
-            WearMusicApp(openPlayerRequestCount = openPlayerRequestCount)
+            WearMusicApp(
+                openPlayerRequestCount = openPlayerRequestCount,
+                openLibraryRequestCount = openLibraryRequestCount,
+                togglePlaybackRequestCount = togglePlaybackRequestCount
+            )
         }
     }
 
     private fun handleLaunchIntent(intent: android.content.Intent?) {
-        if (intent?.getStringExtra(EXTRA_OPEN_DESTINATION) == DESTINATION_PLAYER) {
-            openPlayerRequestCount += 1
+        when (intent?.getStringExtra(EXTRA_OPEN_DESTINATION)) {
+            DESTINATION_PLAYER -> openPlayerRequestCount += 1
+            DESTINATION_LIBRARY -> openLibraryRequestCount += 1
+        }
+        if (intent?.getStringExtra(EXTRA_TILE_ACTION) == TILE_ACTION_TOGGLE_PLAYBACK) {
+            togglePlaybackRequestCount += 1
         }
     }
 
@@ -119,10 +132,18 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun WearMusicApp(openPlayerRequestCount: Int = 0) {
+fun WearMusicApp(
+    openPlayerRequestCount: Int = 0,
+    openLibraryRequestCount: Int = 0,
+    togglePlaybackRequestCount: Int = 0
+) {
     WearMusicTheme {
         AppScaffold {
-            MusicPlayerApp(openPlayerRequestCount = openPlayerRequestCount)
+            MusicPlayerApp(
+                openPlayerRequestCount = openPlayerRequestCount,
+                openLibraryRequestCount = openLibraryRequestCount,
+                togglePlaybackRequestCount = togglePlaybackRequestCount
+            )
         }
     }
 }

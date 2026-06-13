@@ -37,6 +37,8 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
         private const val KEY_TILE_TRACK_TITLE = "tile_track_title"
         private const val KEY_TILE_TRACK_ARTIST = "tile_track_artist"
         private const val KEY_TILE_IS_PLAYING = "tile_is_playing"
+        private const val KEY_TILE_LIBRARY_KNOWN = "tile_library_known"
+        private const val KEY_TILE_LIBRARY_HAS_TRACKS = "tile_library_has_tracks"
     }
 
     private val repo = MusicRepository(app)
@@ -530,6 +532,7 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
             val page = repo.getTracksPage(0, PAGE_SIZE, sortBy).first()
             // Establish a non-stale baseline used by onAppForeground change detection.
             lastLibraryFingerprint = repo.getLibraryFingerprint(forceFresh = true)
+            updateTileLibraryState(page.tracks.isNotEmpty())
             _tracks.value = page.tracks
             _currentPage.value = 0
             _hasMoreTracks.value = page.hasMore
@@ -602,6 +605,14 @@ class MusicPlayerViewModel(app: Application) : AndroidViewModel(app) {
             remove(KEY_TILE_TRACK_TITLE)
             remove(KEY_TILE_TRACK_ARTIST)
             putBoolean(KEY_TILE_IS_PLAYING, false)
+        }
+        requestTileUpdate()
+    }
+
+    private fun updateTileLibraryState(hasTracks: Boolean) {
+        sharedPreferences.edit {
+            putBoolean(KEY_TILE_LIBRARY_KNOWN, true)
+            putBoolean(KEY_TILE_LIBRARY_HAS_TRACKS, hasTracks)
         }
         requestTileUpdate()
     }

@@ -34,7 +34,11 @@ enum class Screen {
 }
 
 @Composable
-fun MusicPlayerApp(openPlayerRequestCount: Int = 0) {
+fun MusicPlayerApp(
+    openPlayerRequestCount: Int = 0,
+    openLibraryRequestCount: Int = 0,
+    togglePlaybackRequestCount: Int = 0
+) {
     val viewModel: MusicPlayerViewModel = viewModel()
     val settingsViewModel: SettingsViewModel = viewModel()
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
@@ -56,6 +60,20 @@ fun MusicPlayerApp(openPlayerRequestCount: Int = 0) {
         if (openPlayerRequestCount > 0) {
             playerBackTarget = Screen.HOME
             currentScreen = Screen.PLAYER
+        }
+    }
+
+    LaunchedEffect(openLibraryRequestCount) {
+        if (openLibraryRequestCount > 0) {
+            currentScreen = Screen.LIBRARY
+        }
+    }
+
+    LaunchedEffect(togglePlaybackRequestCount) {
+        if (togglePlaybackRequestCount > 0) {
+            playerBackTarget = Screen.HOME
+            currentScreen = Screen.PLAYER
+            viewModel.togglePlayPause()
         }
     }
 

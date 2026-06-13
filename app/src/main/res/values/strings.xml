@@ -61,13 +61,18 @@
     
     <!-- Tile: primary chip text -->
     <string name="open_player">Open Player</string>
+    <string name="open_library">Library</string>
 
     <!-- Tile: accessibility / talk-back description -->
     <string name="open_player_desc">Open Now Playing</string>
+    <string name="open_library_desc">Open Music Library</string>
     <string name="tile_now_playing">Now playing</string>
     <string name="tile_paused">Paused</string>
     <string name="tile_no_track">No track selected</string>
     <string name="tile_ready">Ready offline</string>
+    <string name="tile_library_empty">Library empty</string>
+    <string name="tile_add_music">Add music to your watch</string>
+    <string name="tile_choose_track">Choose a track</string>
     <string name="album_art">Album art</string>
     <string name="shuffle">Shuffle</string>
     <string name="repeat">Repeat</string>

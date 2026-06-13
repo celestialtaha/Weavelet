@@ -44,6 +44,8 @@ private const val PREFS_NAME = "music_player_settings"
 private const val KEY_TILE_TRACK_TITLE = "tile_track_title"
 private const val KEY_TILE_TRACK_ARTIST = "tile_track_artist"
 private const val KEY_TILE_IS_PLAYING = "tile_is_playing"
+private const val KEY_TILE_LIBRARY_KNOWN = "tile_library_known"
+private const val KEY_TILE_LIBRARY_HAS_TRACKS = "tile_library_has_tracks"
 
 @OptIn(ExperimentalHorologistApi::class)
 class MainTileService : SuspendingTileService() {
@@ -110,34 +112,58 @@ private fun tileLayout(
     context: Context
 ): LayoutElementBuilders.LayoutElement {
     val deviceParameters = requestParams.deviceConfiguration
-    val openAppClickable = ModifiersBuilders.Clickable.Builder()
-        .setId("open_music_player")
-        .setOnClick(
-            ActionBuilders.LaunchAction.Builder()
-                .setAndroidActivity(
-                    ActionBuilders.AndroidActivity.Builder()
-                        .setPackageName(context.packageName)
-                        .setClassName(MainActivity::class.java.name)
-                        .addKeyToExtraMapping(
-                            MainActivity.EXTRA_OPEN_DESTINATION,
-                            ActionBuilders.AndroidStringExtra.Builder()
-                                .setValue(MainActivity.DESTINATION_PLAYER)
-                                .build()
-                        )
-                        .build()
-                )
-                .build()
-        )
-        .build()
-
     val nowPlaying = readNowPlaying(context)
-    val status = when {
-        nowPlaying.title == null -> context.getString(R.string.tile_ready)
-        nowPlaying.isPlaying -> context.getString(R.string.tile_now_playing)
-        else -> context.getString(R.string.tile_paused)
+    val hasTrack = nowPlaying.title != null
+    val openTileClickable = if (hasTrack) {
+        mainActivityClickable(
+            context = context,
+            id = "open_now_playing",
+            destination = MainActivity.DESTINATION_PLAYER
+        )
+    } else {
+        mainActivityClickable(
+            context = context,
+            id = "open_library",
+            destination = MainActivity.DESTINATION_LIBRARY
+        )
     }
-    val title = nowPlaying.title ?: context.getString(R.string.tile_no_track)
-    val artist = nowPlaying.artist ?: context.getString(R.string.app_name)
+    val edgeClickable = if (hasTrack) {
+        mainActivityClickable(
+            context = context,
+            id = if (nowPlaying.isPlaying) "pause_from_tile" else "resume_from_tile",
+            destination = MainActivity.DESTINATION_PLAYER,
+            tileAction = MainActivity.TILE_ACTION_TOGGLE_PLAYBACK
+        )
+    } else {
+        openTileClickable
+    }
+    val status = when {
+        hasTrack && nowPlaying.isPlaying -> context.getString(R.string.tile_now_playing)
+        hasTrack -> context.getString(R.string.tile_paused)
+        nowPlaying.libraryKnown && !nowPlaying.libraryHasTracks -> context.getString(R.string.tile_library_empty)
+        nowPlaying.libraryHasTracks -> context.getString(R.string.tile_ready)
+        else -> context.getString(R.string.tile_ready)
+    }
+    val title = when {
+        hasTrack -> nowPlaying.title
+        nowPlaying.libraryKnown && !nowPlaying.libraryHasTracks -> context.getString(R.string.tile_add_music)
+        else -> context.getString(R.string.tile_choose_track)
+    }
+    val artist = when {
+        hasTrack -> nowPlaying.artist ?: context.getString(R.string.app_name)
+        nowPlaying.libraryKnown && !nowPlaying.libraryHasTracks -> context.getString(R.string.open_library)
+        else -> context.getString(R.string.app_name)
+    }
+    val edgeLabel = when {
+        nowPlaying.isPlaying -> context.getString(R.string.pause)
+        hasTrack -> context.getString(R.string.play)
+        else -> context.getString(R.string.open_library)
+    }
+    val edgeDescription = when {
+        nowPlaying.isPlaying -> context.getString(R.string.pause)
+        hasTrack -> context.getString(R.string.play)
+        else -> context.getString(R.string.open_library_desc)
+    }
 
     return materialScope(context, deviceParameters) {
         primaryLayout(
@@ -200,15 +226,15 @@ private fun tileLayout(
             },
             bottomSlot = {
                 textEdgeButton(
-                    onClick = openAppClickable,
+                    onClick = edgeClickable,
                     modifier = LayoutModifier.contentDescription(
-                        context.getString(R.string.open_player_desc)
+                        edgeDescription
                     )
                 ) {
-                    text(context.getString(R.string.open_player).layoutString)
+                    text(edgeLabel.layoutString)
                 }
             },
-            onClick = openAppClickable,
+            onClick = openTileClickable,
             margins = DEFAULT_PRIMARY_LAYOUT_MARGIN
         )
     }
@@ -217,7 +243,9 @@ private fun tileLayout(
 private data class TileNowPlaying(
     val title: String?,
     val artist: String?,
-    val isPlaying: Boolean
+    val isPlaying: Boolean,
+    val libraryKnown: Boolean,
+    val libraryHasTracks: Boolean
 )
 
 private fun readNowPlaying(context: Context): TileNowPlaying {
@@ -226,6 +254,43 @@ private fun readNowPlaying(context: Context): TileNowPlaying {
     return TileNowPlaying(
         title = rawTitle,
         artist = prefs.getString(KEY_TILE_TRACK_ARTIST, null)?.takeIf { it.isNotBlank() },
-        isPlaying = prefs.getBoolean(KEY_TILE_IS_PLAYING, false)
+        isPlaying = prefs.getBoolean(KEY_TILE_IS_PLAYING, false),
+        libraryKnown = prefs.getBoolean(KEY_TILE_LIBRARY_KNOWN, false),
+        libraryHasTracks = prefs.getBoolean(KEY_TILE_LIBRARY_HAS_TRACKS, false)
     )
+}
+
+private fun mainActivityClickable(
+    context: Context,
+    id: String,
+    destination: String,
+    tileAction: String? = null
+): ModifiersBuilders.Clickable {
+    val activityBuilder = ActionBuilders.AndroidActivity.Builder()
+        .setPackageName(context.packageName)
+        .setClassName(MainActivity::class.java.name)
+        .addKeyToExtraMapping(
+            MainActivity.EXTRA_OPEN_DESTINATION,
+            ActionBuilders.AndroidStringExtra.Builder()
+                .setValue(destination)
+                .build()
+        )
+
+    if (tileAction != null) {
+        activityBuilder.addKeyToExtraMapping(
+            MainActivity.EXTRA_TILE_ACTION,
+            ActionBuilders.AndroidStringExtra.Builder()
+                .setValue(tileAction)
+                .build()
+        )
+    }
+
+    return ModifiersBuilders.Clickable.Builder()
+        .setId(id)
+        .setOnClick(
+            ActionBuilders.LaunchAction.Builder()
+                .setAndroidActivity(activityBuilder.build())
+                .build()
+        )
+        .build()
 }
