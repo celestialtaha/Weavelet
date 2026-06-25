@@ -38,7 +38,7 @@ jobs:
       - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          sdkmanager "platform-tools" "platforms;android-37" "build-tools;36.0.0"
 
       - name: Build debug APK
         run: ./gradlew --no-daemon --max-workers=2 :app:assembleDebug
