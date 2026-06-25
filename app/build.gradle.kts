@@ -8,7 +8,7 @@ plugins {
 
 extensions.configure<ApplicationExtension> {
     namespace = "com.wapp.wearmusic"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.wapp.wearmusic"

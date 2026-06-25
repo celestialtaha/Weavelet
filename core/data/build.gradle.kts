@@ -8,7 +8,7 @@ plugins {
 
 extensions.configure<LibraryExtension> {
     namespace = "com.wapp.wearmusic.core.data"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 29
